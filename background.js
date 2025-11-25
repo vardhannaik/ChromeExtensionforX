@@ -3,7 +3,8 @@
 // Default settings - hideCheckmarks enabled by default
 const DEFAULT_SETTINGS = {
   hideCheckmarks: true,  // Enabled by default
-  hideAds: false
+  hideAds: false,
+  hideParody: false
 };
 
 // Initialize default settings on install

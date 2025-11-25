@@ -4,7 +4,7 @@
 
   // Get settings from storage
   const result = await chrome.storage.sync.get('settings');
-  const settings = result.settings || { hideCheckmarks: true, hideAds: false };
+  const settings = result.settings || { hideCheckmarks: true, hideAds: false, hideParody: false };
 
   // Apply settings as CSS classes to the body
   function applySettings() {
@@ -20,6 +20,12 @@
       body.classList.add('xcp-hideAds');
     } else {
       body.classList.remove('xcp-hideAds');
+    }
+    
+    if (settings.hideParody) {
+      body.classList.add('xcp-hideParody');
+    } else {
+      body.classList.remove('xcp-hideParody');
     }
   }
 
@@ -120,11 +126,77 @@
     });
   }
 
+  // Hide tweets from parody accounts
+  function hideParodyAccounts() {
+    if (!settings.hideParody) return;
+
+    // Find all articles (tweets)
+    const articles = document.querySelectorAll('article');
+    articles.forEach(article => {
+      if (article.hasAttribute('data-xcp-parody-processed')) return;
+
+      // Look for usernames and display names
+      const userLinks = article.querySelectorAll('a[href^="/"][href*="/status/"]');
+      const allText = article.textContent || '';
+      
+      // Check display name and bio for parody indicators
+      const displayNameElement = article.querySelector('[dir="ltr"] span');
+      const displayName = displayNameElement?.textContent || '';
+      
+      // Common parody indicators
+      const parodyIndicators = [
+        'parody',
+        'fan account',
+        'fanaccount', 
+        'not affiliated',
+        'unofficial',
+        'satire',
+        'fake',
+        'impersonat',
+        'tribute',
+        'stan account'
+      ];
+
+      // Check if account is marked as parody
+      let isParody = false;
+      
+      // Check display name
+      const lowerDisplayName = displayName.toLowerCase();
+      for (const indicator of parodyIndicators) {
+        if (lowerDisplayName.includes(indicator)) {
+          isParody = true;
+          break;
+        }
+      }
+
+      // Check bio/description (often appears in the hover card or profile)
+      // We'll check the visible text in the article
+      if (!isParody) {
+        const lowerText = allText.toLowerCase();
+        for (const indicator of parodyIndicators) {
+          if (lowerText.includes(indicator)) {
+            isParody = true;
+            break;
+          }
+        }
+      }
+
+      if (isParody) {
+        const cell = article.closest('[data-testid="cellInnerDiv"]') || article;
+        cell.style.display = 'none';
+        article.setAttribute('data-xcp-parody-processed', 'true');
+      } else {
+        article.setAttribute('data-xcp-parody-processed', 'true');
+      }
+    });
+  }
+
   // Observer to handle dynamic content
   const observer = new MutationObserver((mutations) => {
     applySettings();
     hideVerifiedTweets();
     hidePromotedContent();
+    hideParodyAccounts();
   });
 
   // Initialize
@@ -140,11 +212,13 @@
     // Run initial cleanup
     hideVerifiedTweets();
     hidePromotedContent();
+    hideParodyAccounts();
     
     // Also run periodically for content loaded after initial scan
     setInterval(() => {
       hideVerifiedTweets();
       hidePromotedContent();
+      hideParodyAccounts();
     }, 1000);
   }
 

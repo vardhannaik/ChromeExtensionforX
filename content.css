@@ -32,6 +32,12 @@ body.xcp-hideAds [data-testid="tweet"]:has(span:contains("Promoted")) {
   display: none !important;
 }
 
+/* Hide parody accounts */
+/* Note: JavaScript handles the main detection logic */
+body.xcp-hideParody article[data-xcp-parody-processed] {
+  /* Handled by JS, this is a backup */
+}
+
 /* Smooth transitions for hiding elements */
 [style*="display: none"] {
   transition: opacity 0.2s ease-out !important;
