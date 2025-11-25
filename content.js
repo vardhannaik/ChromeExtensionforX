@@ -734,6 +734,9 @@ BULK ADD:
     }
   };
 
+  // Expose to global window object for console access
+  window.XControlPanel = XControlPanel;
+
   // Show help on load
   console.log(`
 🎮 X Control Panel Loaded!
