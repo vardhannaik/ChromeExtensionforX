@@ -3,8 +3,7 @@ const DEFAULT_SETTINGS = {
   hideCheckmarks: true,  // Enabled by default
   hideAds: false,
   hideParody: false,
-  keywordMutingEnabled: false,
-  keywordDroppingEnabled: false
+  keywordMutingEnabled: false
 };
 
 // Load settings from storage
@@ -20,14 +19,12 @@ async function saveSettings(settings) {
 
 // Load statistics
 async function loadStats() {
-  const data = await chrome.storage.local.get(['muteKeywords', 'dropKeywords', 'mutedAccounts']);
+  const data = await chrome.storage.local.get(['muteKeywords', 'mutedAccounts']);
   
   const muteKeywords = data.muteKeywords || [];
-  const dropKeywords = data.dropKeywords || [];
   const mutedAccounts = data.mutedAccounts || [];
   
   document.getElementById('muteKeywordCount').textContent = muteKeywords.length;
-  document.getElementById('dropKeywordCount').textContent = dropKeywords.length;
   document.getElementById('mutedAccountCount').textContent = mutedAccounts.length;
 }
 

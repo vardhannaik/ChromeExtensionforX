@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Control Panel for X",
-  "version": "2.2.1",
+  "version": "2.2.6",
   "description": "Control X timeline with keywords: auto-mute accounts or hide tweets. Filter verified accounts, ads, and parody accounts.",
   "permissions": [
     "storage",
@@ -30,9 +30,19 @@
         "*://twitter.com/*",
         "*://x.com/*"
       ],
-      "js": ["content.js"],
+      "js": ["content-isolated.js"],
       "css": ["content.css"],
-      "run_at": "document_start"
+      "run_at": "document_start",
+      "world": "ISOLATED"
+    },
+    {
+      "matches": [
+        "*://twitter.com/*",
+        "*://x.com/*"
+      ],
+      "js": ["content-main.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
     }
   ],
   "background": {
