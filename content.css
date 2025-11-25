@@ -43,3 +43,38 @@ body.xcp-hideParody article[data-xcp-parody-processed] {
   transition: opacity 0.2s ease-out !important;
   opacity: 0 !important;
 }
+
+/* Notifications for keyword matches */
+.xcp-notification {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  z-index: 10000;
+  color: white;
+  font-size: 14px;
+  line-height: 1.4;
+  animation: xcp-slideIn 0.3s ease;
+  max-width: 300px;
+}
+
+.xcp-notification.xcp-mute {
+  background: #e74c3c; /* Red - permanent action */
+}
+
+.xcp-notification.xcp-drop {
+  background: #3498db; /* Blue - temporary action */
+}
+
+@keyframes xcp-slideIn {
+  from {
+    transform: translateX(400px);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}

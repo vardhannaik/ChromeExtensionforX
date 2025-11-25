@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "Control Panel for X",
-  "version": "2.1.0",
-  "description": "Hide verified accounts' tweets (except those you follow), block ads, and filter parody accounts on X (Twitter)",
+  "version": "2.2.0",
+  "description": "Control X timeline with keywords: auto-mute accounts or hide tweets. Filter verified accounts, ads, and parody accounts.",
   "permissions": [
     "storage",
     "tabs"

@@ -4,7 +4,9 @@
 const DEFAULT_SETTINGS = {
   hideCheckmarks: true,  // Enabled by default
   hideAds: false,
-  hideParody: false
+  hideParody: false,
+  keywordMutingEnabled: false,
+  keywordDroppingEnabled: false
 };
 
 // Initialize default settings on install
@@ -15,6 +17,21 @@ chrome.runtime.onInstalled.addListener(async () => {
     await chrome.storage.sync.set({ settings: DEFAULT_SETTINGS });
     console.log('Control Panel for X: Default settings initialized');
   }
+  
+  // Initialize keyword storage if not exists
+  const localData = await chrome.storage.local.get(['muteKeywords', 'dropKeywords', 'mutedAccounts']);
+  
+  if (!localData.muteKeywords) {
+    await chrome.storage.local.set({ muteKeywords: [] });
+  }
+  if (!localData.dropKeywords) {
+    await chrome.storage.local.set({ dropKeywords: [] });
+  }
+  if (!localData.mutedAccounts) {
+    await chrome.storage.local.set({ mutedAccounts: [] });
+  }
+  
+  console.log('Control Panel for X: Keyword storage initialized');
 });
 
 // Listen for messages from content script

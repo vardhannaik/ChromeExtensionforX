@@ -2,7 +2,9 @@
 const DEFAULT_SETTINGS = {
   hideCheckmarks: true,  // Enabled by default
   hideAds: false,
-  hideParody: false
+  hideParody: false,
+  keywordMutingEnabled: false,
+  keywordDroppingEnabled: false
 };
 
 // Load settings from storage
@@ -16,6 +18,19 @@ async function saveSettings(settings) {
   await chrome.storage.sync.set({ settings });
 }
 
+// Load statistics
+async function loadStats() {
+  const data = await chrome.storage.local.get(['muteKeywords', 'dropKeywords', 'mutedAccounts']);
+  
+  const muteKeywords = data.muteKeywords || [];
+  const dropKeywords = data.dropKeywords || [];
+  const mutedAccounts = data.mutedAccounts || [];
+  
+  document.getElementById('muteKeywordCount').textContent = muteKeywords.length;
+  document.getElementById('dropKeywordCount').textContent = dropKeywords.length;
+  document.getElementById('mutedAccountCount').textContent = mutedAccounts.length;
+}
+
 // Initialize UI with saved settings
 async function initializeUI() {
   const settings = await loadSettings();
@@ -27,6 +42,9 @@ async function initializeUI() {
       toggle.classList.add('active');
     }
   });
+  
+  // Load statistics
+  await loadStats();
 }
 
 // Handle toggle clicks

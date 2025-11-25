@@ -2,7 +2,7 @@
 
 > A focused Chrome extension to filter verified accounts and block ads on X (Twitter)
 
-[![Version](https://img.shields.io/badge/version-2.1.0-blue.svg)](https://github.com/yourusername/control-panel-for-x/releases)
+[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/yourusername/control-panel-for-x/releases)
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 [![Chrome](https://img.shields.io/badge/chrome-extension-orange.svg)](https://chrome.google.com/webstore)
 
@@ -20,11 +20,20 @@
 - **~90% effective** at blocking promoted content
 - **User controlled:** Toggle on/off as needed
 
-### 3. Hide Parody Accounts (NEW!)
+### 3. Hide Parody Accounts
 - **Smart detection:** Identifies parody/fan/unofficial accounts
 - **Keyword matching:** Looks for "parody", "fan account", "unofficial", "satire", etc.
 - **Display name & bio:** Checks account descriptions for parody indicators
 - **User controlled:** Toggle on/off as needed
+
+### 4. Keyword-Based Muting (NEW! 🎉)
+- **MUTE keywords:** Permanently mutes accounts via X's native system
+- **DROP keywords:** Hides tweets containing keywords (reversible)
+- **Multi-word phrases:** Support for "crypto giveaway", "link in bio", etc.
+- **Console management:** Add/remove keywords via browser console
+- **Up to 1000 keywords** per type (2000 total)
+
+[📖 See Keyword Controls Guide](KEYWORDS_GUIDE.md)
 
 ## 🚀 Quick Start
 
@@ -46,7 +55,14 @@
 3. **Configure (Optional)**
    - Click the extension icon in your toolbar
    - Enable "Hide ads" if desired
+   - Enable "keyword muting" or "keyword dropping" for keyword controls
    - Click "Save Settings"
+
+4. **Add Keywords (Optional)**
+   - Press F12 on X.com to open console
+   - Type: `XControlPanel.help()`
+   - Add keywords: `XControlPanel.addMuteKeyword('crypto')`
+   - [📖 See Full Keyword Guide](KEYWORDS_GUIDE.md)
 
 ### Alternative: Download Release
 
@@ -173,7 +189,16 @@ document.body.classList.contains('xcp-hideCheckmarks')
 
 ## 📝 Changelog
 
-### v2.1.0 (Current)
+### v2.2.0 (Current)
+- ✨ **NEW:** Keyword-based muting and dropping
+- 🔇 MUTE keywords: Permanently mutes accounts via X's native system
+- 🗑️ DROP keywords: Hides tweets containing keywords (reversible)
+- 📝 Multi-word phrase support ("link in bio", "crypto giveaway", etc.)
+- 💻 Console management interface (add/remove/list keywords)
+- 📊 Statistics tracking (muted accounts, keyword counts)
+- 🎯 Up to 1000 keywords per type (2000 total)
+
+### v2.1.0
 - ✨ **NEW:** Hide parody accounts feature
 - 🎯 Smart detection of parody/fan/unofficial accounts
 - 🔍 Keyword matching in display names and bios
