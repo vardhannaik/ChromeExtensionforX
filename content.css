@@ -1,0 +1,39 @@
+/* Control Panel for X - Content Styles */
+
+/* Hide tweets from verified accounts (except on Following timeline) */
+/* Note: JavaScript handles the Following timeline exception */
+body.xcp-hideCheckmarks article:has([data-testid="icon-verified"]) {
+  display: none !important;
+}
+
+/* Also hide in timeline cells */
+body.xcp-hideCheckmarks [data-testid="cellInnerDiv"]:has([data-testid="icon-verified"]) {
+  display: none !important;
+}
+
+/* Hide ads and promoted content */
+/* Method 1: By placement tracking */
+body.xcp-hideAds [data-testid="placementTracking"] {
+  display: none !important;
+}
+
+/* Method 2: By parent cell */
+body.xcp-hideAds [data-testid="cellInnerDiv"]:has([data-testid="placementTracking"]) {
+  display: none !important;
+}
+
+/* Method 3: Articles with promoted indicators */
+body.xcp-hideAds article:has(span:contains("Promoted")) {
+  display: none !important;
+}
+
+/* Method 4: Timeline items with "Ad" text */
+body.xcp-hideAds [data-testid="tweet"]:has(span:contains("Promoted")) {
+  display: none !important;
+}
+
+/* Smooth transitions for hiding elements */
+[style*="display: none"] {
+  transition: opacity 0.2s ease-out !important;
+  opacity: 0 !important;
+}

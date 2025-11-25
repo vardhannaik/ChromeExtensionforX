@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Control Panel for X</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      width: 400px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background: #15202b;
+      color: #fff;
+      padding: 16px;
+    }
+
+    h1 {
+      font-size: 20px;
+      margin-bottom: 16px;
+      color: #1da1f2;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .section {
+      margin-bottom: 20px;
+    }
+
+    .section-title {
+      font-size: 14px;
+      font-weight: 600;
+      margin-bottom: 10px;
+      color: #8899a6;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .option {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 0;
+      border-bottom: 1px solid #38444d;
+    }
+
+    .option:last-child {
+      border-bottom: none;
+    }
+
+    .option-label {
+      font-size: 14px;
+      color: #e1e8ed;
+      flex: 1;
+    }
+
+    .option-description {
+      font-size: 12px;
+      color: #8899a6;
+      margin-top: 4px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 44px;
+      height: 24px;
+      background: #38444d;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: background 0.3s;
+    }
+
+    .toggle.active {
+      background: #1da1f2;
+    }
+
+    .toggle::after {
+      content: '';
+      position: absolute;
+      width: 20px;
+      height: 20px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.3s;
+    }
+
+    .toggle.active::after {
+      transform: translateX(20px);
+    }
+
+    .save-btn {
+      width: 100%;
+      padding: 12px;
+      background: #1da1f2;
+      color: white;
+      border: none;
+      border-radius: 20px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .save-btn:hover {
+      background: #1a91da;
+    }
+
+    .save-btn:active {
+      transform: scale(0.98);
+    }
+
+    .saved-message {
+      text-align: center;
+      color: #17bf63;
+      font-size: 14px;
+      margin-top: 8px;
+      opacity: 0;
+      transition: opacity 0.3s;
+    }
+
+    .saved-message.show {
+      opacity: 1;
+    }
+  </style>
+</head>
+<body>
+  <h1>
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="currentColor">
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+    </svg>
+    Control Panel for X
+  </h1>
+
+  <div class="section">
+    <div class="section-title">Content Filtering</div>
+    
+    <div class="option">
+      <div>
+        <div class="option-label">Hide verified accounts' tweets</div>
+        <div class="option-description">Hide tweets from verified accounts (except those you follow)</div>
+      </div>
+      <div class="toggle" data-setting="hideCheckmarks"></div>
+    </div>
+
+    <div class="option">
+      <div>
+        <div class="option-label">Hide ads</div>
+        <div class="option-description">Remove promoted content</div>
+      </div>
+      <div class="toggle" data-setting="hideAds"></div>
+    </div>
+  </div>
+
+  <button class="save-btn" id="saveBtn">Save Settings</button>
+  <div class="saved-message" id="savedMessage">Settings saved!</div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
