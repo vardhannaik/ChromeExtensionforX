@@ -84,6 +84,12 @@ console.log('🎮 X Control Panel: Starting backend...');
       return;
     }
 
+    // SAFETY CHECK: Don't mute accounts you follow
+    if (isFollowedAccount(tweetElement)) {
+      console.log(`⚠️  Skipping @${username} - You follow this account (keyword: "${keyword}")`);
+      return;
+    }
+
     muteQueue.push({ tweetElement, username, keyword });
     mutedThisSession.add(username);
 
@@ -225,6 +231,44 @@ console.log('🎮 X Control Panel: Starting backend...');
       console.error('Error extracting username:', error);
     }
     return null;
+  }
+
+  function isFollowedAccount(tweetElement) {
+    try {
+      // Method 1: Check for "Following" badge/button
+      // X shows a "Following" button for accounts you follow
+      const followingButton = tweetElement.querySelector('[data-testid*="following"]');
+      if (followingButton) {
+        return true;
+      }
+
+      // Method 2: Check if we're on the Following timeline
+      // If viewing "Following" feed, all tweets are from followed accounts
+      const isFollowingTimeline = window.location.pathname === '/home' && 
+        (window.location.search.includes('f=following') || 
+         document.querySelector('[role="tab"][aria-selected="true"][href*="following"]'));
+      
+      if (isFollowingTimeline) {
+        return true;
+      }
+
+      // Method 3: Look for profile unfollow indicator in user cell
+      // When you follow someone, their profile area has different structure
+      const userCell = tweetElement.querySelector('[data-testid="User-Name"]');
+      if (userCell) {
+        // Check if parent contains following indicator
+        const followButton = userCell.closest('article')?.querySelector('button[aria-label*="Following"]');
+        if (followButton) {
+          return true;
+        }
+      }
+
+      return false;
+    } catch (error) {
+      console.error('Error checking follow status:', error);
+      // If error checking, be safe and assume following
+      return false;
+    }
   }
 
   function showNotification(title, message, type) {
@@ -624,12 +668,36 @@ console.log('🎮 X Control Panel: Starting backend...');
         'make', 'like', 'time', 'no', 'than', 'see', 'way', 'then', 'more', 'all'
       ]);
       
+      // Usernames to filter (the analyzed user and variations)
+      const usernameVariants = new Set([
+        username.toLowerCase(),
+        username.toLowerCase().replace(/[^a-z0-9]/g, '') // Remove special chars
+      ]);
+      
       // Data structures
       const wordFrequency = {};
       const coOccurrence = {};
       const bigrams = {};
       const trigrams = {};
       const tweetsContainingWord = {};
+      
+      // Helper: Check if word looks like a username or ID
+      function isUsernameOrId(word) {
+        // Skip if it's the actual username
+        if (usernameVariants.has(word)) return true;
+        
+        // Skip pure numbers (likely IDs or dates)
+        if (/^\d+$/.test(word)) return true;
+        
+        // Skip if mostly numbers (like "user123", "bot2024")
+        const digitCount = (word.match(/\d/g) || []).length;
+        if (digitCount / word.length > 0.5) return true;
+        
+        // Skip if looks like hex ID (8+ chars with mix of letters and numbers)
+        if (word.length >= 8 && /^[a-f0-9]+$/.test(word)) return true;
+        
+        return false;
+      }
       
       // Process each tweet
       userTweets.forEach(tweet => {
@@ -638,8 +706,11 @@ console.log('🎮 X Control Panel: Starting backend...');
         // Tokenize: extract words (alphanumeric only, 2+ chars)
         const words = lowerTweet.match(/\b[a-z0-9]{2,}\b/g) || [];
         
-        // Filter out stop words
-        const meaningfulWords = words.filter(word => !stopWords.has(word));
+        // Filter out stop words, usernames, and IDs
+        const meaningfulWords = words.filter(word => 
+          !stopWords.has(word) && 
+          !isUsernameOrId(word)
+        );
         
         // 1. WORD FREQUENCY
         meaningfulWords.forEach(word => {
