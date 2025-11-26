@@ -671,8 +671,17 @@ console.log('🎮 X Control Panel: Starting backend...');
       // Usernames to filter (the analyzed user and variations)
       const usernameVariants = new Set([
         username.toLowerCase(),
-        username.toLowerCase().replace(/[^a-z0-9]/g, '') // Remove special chars
+        username.toLowerCase().replace(/[^a-z0-9]/g, ''), // Remove special chars
+        username.toLowerCase().replace(/[^a-z]/g, '') // Remove numbers too
       ]);
+      
+      // Also extract parts of username (for usernames like "JustinSkycak" → "justin", "skycak")
+      const usernameParts = username.toLowerCase().match(/[a-z]+/g) || [];
+      usernameParts.forEach(part => {
+        if (part.length > 2) { // Only meaningful parts
+          usernameVariants.add(part);
+        }
+      });
       
       // Data structures
       const wordFrequency = {};
@@ -683,11 +692,17 @@ console.log('🎮 X Control Panel: Starting backend...');
       
       // Helper: Check if word looks like a username or ID
       function isUsernameOrId(word) {
-        // Skip if it's the actual username
+        // Skip if it's the actual username or any part of it
         if (usernameVariants.has(word)) return true;
         
         // Skip pure numbers (likely IDs or dates)
         if (/^\d+$/.test(word)) return true;
+        
+        // Skip common date/time abbreviations (jan, feb, mon, tue, etc.)
+        const dateWords = new Set(['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec',
+                                   'mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun',
+                                   'am', 'pm', 'est', 'pst', 'utc', 'gmt']);
+        if (dateWords.has(word)) return true;
         
         // Skip if mostly numbers (like "user123", "bot2024")
         const digitCount = (word.match(/\d/g) || []).length;
