@@ -668,20 +668,32 @@ console.log('🎮 X Control Panel: Starting backend...');
         'make', 'like', 'time', 'no', 'than', 'see', 'way', 'then', 'more', 'all'
       ]);
       
-      // Usernames to filter (the analyzed user and variations)
+      // Usernames to filter - start with username itself
       const usernameVariants = new Set([
         username.toLowerCase(),
         username.toLowerCase().replace(/[^a-z0-9]/g, ''), // Remove special chars
         username.toLowerCase().replace(/[^a-z]/g, '') // Remove numbers too
       ]);
       
-      // Also extract parts of username (for usernames like "JustinSkycak" → "justin", "skycak")
-      const usernameParts = username.toLowerCase().match(/[a-z]+/g) || [];
-      usernameParts.forEach(part => {
-        if (part.length > 2) { // Only meaningful parts
-          usernameVariants.add(part);
-        }
-      });
+      // Extract display name from profile (the name shown at top of profile)
+      // Look for the display name in the page
+      const displayNameElement = document.querySelector('[data-testid="UserName"]') || 
+                                  document.querySelector('[data-testid="UserDescription"]')?.previousElementSibling;
+      
+      if (displayNameElement) {
+        const displayName = displayNameElement.textContent || '';
+        console.log(`🔍 Display name found: "${displayName}"`);
+        
+        // Extract words from display name (e.g., "Justin Skycak" → ["justin", "skycak"])
+        const displayNameWords = displayName.toLowerCase().match(/[a-z]{3,}/g) || [];
+        displayNameWords.forEach(word => {
+          usernameVariants.add(word);
+        });
+      }
+      
+      // Debug: Show what we're filtering
+      console.log(`🔍 Username: @${username}`);
+      console.log(`🔍 Filtering words:`, Array.from(usernameVariants).sort());
       
       // Data structures
       const wordFrequency = {};
