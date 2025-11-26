@@ -590,7 +590,7 @@ console.log('🎮 X Control Panel: Starting backend...');
     },
     
     analyzeAccount: function(username) {
-      console.log(`\n🔍 Analyzing @${username}'s tweets...\n`);
+      console.log(`\n🔍 Analyzing @${username}'s vocabulary patterns...\n`);
       
       // Find all tweets from this account on the current page
       const allArticles = document.querySelectorAll('article');
@@ -612,91 +612,291 @@ console.log('🎮 X Control Panel: Starting backend...');
       
       console.log(`✅ Found ${userTweets.length} tweet${userTweets.length > 1 ? 's' : ''} from @${username}\n`);
       
-      // Spam indicators to look for
-      const spamPatterns = {
-        'Giveaways': ['giveaway', 'free', 'win', 'prize', 'contest'],
-        'Crypto/NFT': ['crypto', 'nft', 'airdrop', 'mint', 'whitelist', 'token', 'coin'],
-        'Engagement Bait': ['follow me', 'rt this', 'like and retweet', 'retweet for', 'follow for'],
-        'Call-to-Action': ['link in bio', 'click here', 'dm me', 'check out', 'visit my'],
-        'Urgency': ['urgent', 'hurry', 'limited time', 'act now', 'don\'t miss'],
-        'Money': ['make money', 'earn cash', 'get paid', 'passive income', 'financial freedom']
-      };
+      // Stop words to filter out (common words with little meaning)
+      const stopWords = new Set([
+        'the', 'a', 'an', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for',
+        'of', 'with', 'by', 'from', 'as', 'is', 'was', 'are', 'were', 'been',
+        'be', 'have', 'has', 'had', 'do', 'does', 'did', 'will', 'would', 'could',
+        'should', 'may', 'might', 'must', 'can', 'this', 'that', 'these', 'those',
+        'i', 'you', 'he', 'she', 'it', 'we', 'they', 'my', 'your', 'his', 'her',
+        'its', 'our', 'their', 'me', 'him', 'them', 'us', 'am', 'so', 'just',
+        'now', 'out', 'up', 'if', 'about', 'who', 'get', 'which', 'go', 'when',
+        'make', 'like', 'time', 'no', 'than', 'see', 'way', 'then', 'more', 'all'
+      ]);
       
-      // Count occurrences
-      const categoryMatches = {};
+      // Data structures
       const wordFrequency = {};
+      const coOccurrence = {};
+      const bigrams = {};
+      const trigrams = {};
+      const tweetsContainingWord = {};
       
+      // Process each tweet
       userTweets.forEach(tweet => {
         const lowerTweet = tweet.toLowerCase();
         
-        // Check each category
-        Object.keys(spamPatterns).forEach(category => {
-          spamPatterns[category].forEach(keyword => {
-            if (lowerTweet.includes(keyword)) {
-              if (!categoryMatches[category]) categoryMatches[category] = {};
-              if (!categoryMatches[category][keyword]) categoryMatches[category][keyword] = 0;
-              categoryMatches[category][keyword]++;
-              
-              // Track overall frequency
-              if (!wordFrequency[keyword]) wordFrequency[keyword] = 0;
-              wordFrequency[keyword]++;
-            }
-          });
+        // Tokenize: extract words (alphanumeric only, 2+ chars)
+        const words = lowerTweet.match(/\b[a-z0-9]{2,}\b/g) || [];
+        
+        // Filter out stop words
+        const meaningfulWords = words.filter(word => !stopWords.has(word));
+        
+        // 1. WORD FREQUENCY
+        meaningfulWords.forEach(word => {
+          wordFrequency[word] = (wordFrequency[word] || 0) + 1;
+          
+          // Track which tweets contain this word
+          if (!tweetsContainingWord[word]) {
+            tweetsContainingWord[word] = new Set();
+          }
+          tweetsContainingWord[word].add(tweet);
         });
+        
+        // 2. CO-OCCURRENCE (word pairs appearing in same tweet)
+        const uniqueWords = [...new Set(meaningfulWords)];
+        for (let i = 0; i < uniqueWords.length; i++) {
+          for (let j = i + 1; j < uniqueWords.length; j++) {
+            const pair = [uniqueWords[i], uniqueWords[j]].sort().join(' + ');
+            coOccurrence[pair] = (coOccurrence[pair] || 0) + 1;
+          }
+        }
+        
+        // 3. BIGRAMS (consecutive 2-word phrases)
+        for (let i = 0; i < meaningfulWords.length - 1; i++) {
+          const bigram = meaningfulWords[i] + ' ' + meaningfulWords[i + 1];
+          bigrams[bigram] = (bigrams[bigram] || 0) + 1;
+        }
+        
+        // 4. TRIGRAMS (consecutive 3-word phrases)
+        for (let i = 0; i < meaningfulWords.length - 2; i++) {
+          const trigram = meaningfulWords[i] + ' ' + meaningfulWords[i + 1] + ' ' + meaningfulWords[i + 2];
+          trigrams[trigram] = (trigrams[trigram] || 0) + 1;
+        }
       });
       
-      // Calculate spam score
-      const totalMatches = Object.values(wordFrequency).reduce((a, b) => a + b, 0);
-      const spamScore = Math.min(100, (totalMatches / userTweets.length) * 20);
+      // Sort and get top results
+      const topWords = Object.entries(wordFrequency)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 15);
+      
+      const topCoOccurrences = Object.entries(coOccurrence)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      
+      const topBigrams = Object.entries(bigrams)
+        .filter(([phrase, count]) => count >= 2)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 10);
+      
+      const topTrigrams = Object.entries(trigrams)
+        .filter(([phrase, count]) => count >= 2)
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 8);
+      
+      // Calculate spam indicators
+      const totalWords = Object.values(wordFrequency).reduce((a, b) => a + b, 0);
+      const uniqueWords = Object.keys(wordFrequency).length;
+      const vocabularyDiversity = uniqueWords / totalWords;
+      
+      // Low diversity = repetitive = likely spam
+      const spamScore = Math.min(100, 
+        (1 - vocabularyDiversity) * 100 + // Low diversity adds to spam
+        (topWords[0] ? (topWords[0][1] / userTweets.length) * 50 : 0) // Heavy single-word use
+      );
       
       // Display results
-      console.log(`📊 Spam Analysis Results:\n`);
-      console.log(`   Spam Score: ${spamScore.toFixed(1)}% ${spamScore > 70 ? '🔴 HIGH' : spamScore > 40 ? '🟡 MEDIUM' : '🟢 LOW'}`);
-      console.log(`   Total spam indicators: ${totalMatches}`);
-      console.log(`   Tweets analyzed: ${userTweets.length}\n`);
+      console.log(`═══════════════════════════════════════════════════════`);
+      console.log(`📊 COMPREHENSIVE VOCABULARY ANALYSIS`);
+      console.log(`═══════════════════════════════════════════════════════\n`);
       
-      if (Object.keys(categoryMatches).length === 0) {
-        console.log(`✅ No obvious spam patterns detected`);
-        return;
+      // Overall stats
+      console.log(`📈 Overall Statistics:`);
+      console.log(`   Total words analyzed: ${totalWords}`);
+      console.log(`   Unique words: ${uniqueWords}`);
+      console.log(`   Vocabulary diversity: ${(vocabularyDiversity * 100).toFixed(1)}%`);
+      console.log(`   Spam score: ${spamScore.toFixed(1)}% ${spamScore > 70 ? '🔴 HIGH' : spamScore > 40 ? '🟡 MEDIUM' : '🟢 LOW'}`);
+      console.log(``);
+      
+      // 1. WORD FREQUENCY
+      if (topWords.length > 0) {
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`1️⃣  INDIVIDUAL WORD FREQUENCY`);
+        console.log(`═══════════════════════════════════════════════════════\n`);
+        
+        topWords.forEach(([word, count], index) => {
+          const percentage = ((tweetsContainingWord[word].size / userTweets.length) * 100).toFixed(0);
+          const intensity = percentage > 70 ? '🔴' : percentage > 50 ? '🟡' : '🟢';
+          console.log(`   ${index + 1}. "${word}" - ${count} times (${percentage}% of tweets) ${intensity}`);
+        });
+        console.log(``);
       }
       
-      // Show matches by category
-      console.log(`🏷️  Spam Categories Detected:\n`);
+      // 2. CO-OCCURRENCE
+      if (topCoOccurrences.length > 0) {
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`2️⃣  CO-OCCURRING WORD PAIRS`);
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`   (Words that appear together in same tweet)\n`);
+        
+        const veryStrong = topCoOccurrences.filter(([_, count]) => (count / userTweets.length) > 0.7);
+        const strong = topCoOccurrences.filter(([_, count]) => {
+          const ratio = count / userTweets.length;
+          return ratio > 0.5 && ratio <= 0.7;
+        });
+        const moderate = topCoOccurrences.filter(([_, count]) => {
+          const ratio = count / userTweets.length;
+          return ratio > 0.3 && ratio <= 0.5;
+        });
+        
+        if (veryStrong.length > 0) {
+          console.log(`   🔴 VERY STRONG (>70% co-occurrence):`);
+          veryStrong.forEach(([pair, count]) => {
+            const percentage = ((count / userTweets.length) * 100).toFixed(0);
+            console.log(`      • ${pair} - together in ${count} tweets (${percentage}%)`);
+          });
+          console.log(``);
+        }
+        
+        if (strong.length > 0) {
+          console.log(`   🟡 STRONG (50-70% co-occurrence):`);
+          strong.forEach(([pair, count]) => {
+            const percentage = ((count / userTweets.length) * 100).toFixed(0);
+            console.log(`      • ${pair} - together in ${count} tweets (${percentage}%)`);
+          });
+          console.log(``);
+        }
+        
+        if (moderate.length > 0) {
+          console.log(`   🟢 MODERATE (30-50% co-occurrence):`);
+          moderate.forEach(([pair, count]) => {
+            const percentage = ((count / userTweets.length) * 100).toFixed(0);
+            console.log(`      • ${pair} - together in ${count} tweets (${percentage}%)`);
+          });
+          console.log(``);
+        }
+      }
       
-      Object.keys(categoryMatches).sort().forEach(category => {
-        const keywords = categoryMatches[category];
-        const categoryTotal = Object.values(keywords).reduce((a, b) => a + b, 0);
+      // 3. BIGRAMS (2-word phrases)
+      if (topBigrams.length > 0) {
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`3️⃣  COMMON 2-WORD PHRASES (Bigrams)`);
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`   (Exact consecutive phrases)\n`);
         
-        console.log(`   ${category} (${categoryTotal} matches):`);
-        
-        Object.keys(keywords).sort((a, b) => keywords[b] - keywords[a]).forEach(keyword => {
-          const count = keywords[keyword];
+        topBigrams.forEach(([phrase, count], index) => {
           const percentage = ((count / userTweets.length) * 100).toFixed(0);
-          console.log(`      • "${keyword}" - ${count}x (${percentage}% of tweets)`);
+          const intensity = count >= 5 ? '🔴' : count >= 3 ? '🟡' : '🟢';
+          console.log(`   ${index + 1}. "${phrase}" - ${count} times (${percentage}% of tweets) ${intensity}`);
         });
-        console.log('');
-      });
-      
-      // Suggest keywords to add
-      const topKeywords = Object.keys(wordFrequency)
-        .sort((a, b) => wordFrequency[b] - wordFrequency[a])
-        .slice(0, 5)
-        .filter(k => wordFrequency[k] >= 2); // Only suggest if appears 2+ times
-      
-      if (topKeywords.length > 0) {
-        console.log(`💡 Suggested keywords to mute:\n`);
-        topKeywords.forEach(keyword => {
-          const count = wordFrequency[keyword];
-          console.log(`   XControlPanel.addMuteKeyword('${keyword}')  // appears ${count}x`);
-        });
-        console.log('');
-        
-        // Bulk add command
-        console.log(`📋 Or add all at once:`);
-        console.log(`   [${topKeywords.map(k => `'${k}'`).join(', ')}].forEach(k => XControlPanel.addMuteKeyword(k))`);
+        console.log(``);
       }
       
-      console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+      // 4. TRIGRAMS (3-word phrases)
+      if (topTrigrams.length > 0) {
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`4️⃣  COMMON 3-WORD PHRASES (Trigrams)`);
+        console.log(`═══════════════════════════════════════════════════════`);
+        console.log(`   (Exact consecutive phrases - template detection)\n`);
+        
+        topTrigrams.forEach(([phrase, count], index) => {
+          const percentage = ((count / userTweets.length) * 100).toFixed(0);
+          const intensity = count >= 4 ? '🔴' : count >= 2 ? '🟡' : '🟢';
+          console.log(`   ${index + 1}. "${phrase}" - ${count} times (${percentage}% of tweets) ${intensity}`);
+        });
+        console.log(``);
+      }
+      
+      // 5. SPAM SIGNATURE DETECTION
+      console.log(`═══════════════════════════════════════════════════════`);
+      console.log(`🎯 SPAM SIGNATURE ANALYSIS`);
+      console.log(`═══════════════════════════════════════════════════════\n`);
+      
+      // Detect patterns
+      const hasHighRepetition = topWords[0] && (topWords[0][1] / userTweets.length) > 0.7;
+      const hasStrongCoOccurrence = topCoOccurrences[0] && (topCoOccurrences[0][1] / userTweets.length) > 0.6;
+      const hasTemplatePattern = topTrigrams[0] && topTrigrams[0][1] >= 3;
+      const hasLowDiversity = vocabularyDiversity < 0.3;
+      
+      if (hasHighRepetition || hasStrongCoOccurrence || hasTemplatePattern || hasLowDiversity) {
+        console.log(`   ⚠️  SPAM INDICATORS DETECTED:\n`);
+        
+        if (hasHighRepetition) {
+          const topWord = topWords[0][0];
+          const percentage = ((tweetsContainingWord[topWord].size / userTweets.length) * 100).toFixed(0);
+          console.log(`   ✓ High repetition: "${topWord}" appears in ${percentage}% of tweets`);
+        }
+        
+        if (hasStrongCoOccurrence) {
+          const topPair = topCoOccurrences[0][0];
+          const percentage = ((topCoOccurrences[0][1] / userTweets.length) * 100).toFixed(0);
+          console.log(`   ✓ Strong word pairing: "${topPair}" appear together in ${percentage}% of tweets`);
+        }
+        
+        if (hasTemplatePattern) {
+          const topPhrase = topTrigrams[0][0];
+          const count = topTrigrams[0][1];
+          console.log(`   ✓ Template detected: "${topPhrase}" repeated ${count} times exactly`);
+        }
+        
+        if (hasLowDiversity) {
+          console.log(`   ✓ Low vocabulary diversity: ${(vocabularyDiversity * 100).toFixed(1)}% (repetitive language)`);
+        }
+        
+        console.log(`\n   Spam confidence: ${spamScore.toFixed(0)}% ${spamScore > 70 ? '🔴' : spamScore > 40 ? '🟡' : '🟢'}\n`);
+      } else {
+        console.log(`   ✅ No strong spam indicators detected`);
+        console.log(`   Account shows varied vocabulary and natural language patterns\n`);
+      }
+      
+      // 6. KEYWORD SUGGESTIONS
+      console.log(`═══════════════════════════════════════════════════════`);
+      console.log(`💡 SUGGESTED KEYWORDS TO MUTE`);
+      console.log(`═══════════════════════════════════════════════════════\n`);
+      
+      // Suggest based on frequency
+      const suggestedWords = topWords
+        .filter(([word, count]) => (tweetsContainingWord[word].size / userTweets.length) >= 0.5)
+        .slice(0, 5);
+      
+      // Suggest based on phrases
+      const suggestedPhrases = topBigrams
+        .filter(([phrase, count]) => count >= 3)
+        .slice(0, 5);
+      
+      if (suggestedWords.length > 0) {
+        console.log(`   Based on high-frequency words:`);
+        suggestedWords.forEach(([word, count]) => {
+          const tweetCount = tweetsContainingWord[word].size;
+          const percentage = ((tweetCount / userTweets.length) * 100).toFixed(0);
+          console.log(`   XControlPanel.addMuteKeyword('${word}')  // ${percentage}% of tweets`);
+        });
+        console.log(``);
+      }
+      
+      if (suggestedPhrases.length > 0) {
+        console.log(`   Based on repeated phrases (STRONGEST signals):`);
+        suggestedPhrases.forEach(([phrase, count]) => {
+          console.log(`   XControlPanel.addMuteKeyword('${phrase}')  // appears ${count}x`);
+        });
+        console.log(``);
+      }
+      
+      if (suggestedWords.length > 0 || suggestedPhrases.length > 0) {
+        // Bulk add command
+        const allSuggestions = [
+          ...suggestedWords.map(([word]) => word),
+          ...suggestedPhrases.map(([phrase]) => phrase)
+        ].slice(0, 5);
+        
+        console.log(`   📋 Or add top suggestions at once:`);
+        console.log(`   [${allSuggestions.map(k => `'${k}'`).join(', ')}].forEach(k => XControlPanel.addMuteKeyword(k))`);
+        console.log(``);
+      } else {
+        console.log(`   No strong keyword suggestions (vocabulary is diverse)`);
+        console.log(``);
+      }
+      
+      console.log(`═══════════════════════════════════════════════════════\n`);
     },
     
     // ========== HELP ==========
