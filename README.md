@@ -1,256 +1,239 @@
-# Control Panel for X
+# Control Panel for X (Twitter)
 
-> A focused Chrome extension to filter verified accounts and block ads on X (Twitter)
+**Version 2.2.7** - Chrome Extension for advanced X/Twitter filtering
 
-[![Version](https://img.shields.io/badge/version-2.2.0-blue.svg)](https://github.com/yourusername/control-panel-for-x/releases)
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
-[![Chrome](https://img.shields.io/badge/chrome-extension-orange.svg)](https://chrome.google.com/webstore)
+Clean up your X timeline by automatically muting spammy accounts based on keywords, hiding verified checkmarks, ads, and parody accounts.
+
+---
 
 ## 🎯 Features
 
-### 1. Hide Verified Accounts' Tweets (Enabled by Default)
-- **Smart filtering:** Hides verified accounts you DON'T follow
-- **Respects your choices:** Shows verified accounts you DO follow
-- **Timeline aware:** Automatically detects Following vs For You timeline
-- **Perfect for:** Filtering X Premium spam while keeping accounts you care about
+### 1. **Keyword-Based Auto-Muting** ⭐
+- Automatically mutes accounts when their tweets contain specific keywords
+- Permanent muting via X's native system
+- Multi-word phrase support (e.g., "crypto giveaway", "link in bio")
+- Console-based management (up to 1000 keywords)
+- Queue system prevents rate limiting (1 mute per second)
 
-### 2. Hide Ads (Improved Detection)
-- **4 detection methods** for maximum coverage
-- **Periodic scanning** catches dynamically loaded ads
-- **~90% effective** at blocking promoted content
-- **User controlled:** Toggle on/off as needed
+### 2. **Spam Analysis Tool** 🆕 v2.2.7
+- Analyze any account's tweets for spam patterns
+- Get spam score (0-100%) with category breakdown
+- Automatic keyword suggestions based on analysis
+- 6 spam categories: Giveaways, Crypto/NFT, Engagement Bait, CTAs, Urgency, Money schemes
 
-### 3. Hide Parody Accounts
-- **Smart detection:** Identifies parody/fan/unofficial accounts
-- **Keyword matching:** Looks for "parody", "fan account", "unofficial", "satire", etc.
-- **Display name & bio:** Checks account descriptions for parody indicators
-- **User controlled:** Toggle on/off as needed
+### 3. **Hide Verified Checkmarks** (ON by default)
+- Hides tweets from verified accounts you don't follow
+- Keeps tweets from accounts you follow visible
 
-### 4. Keyword-Based Muting (NEW! 🎉)
-- **MUTE keywords:** Permanently mutes accounts via X's native system
-- **DROP keywords:** Hides tweets containing keywords (reversible)
-- **Multi-word phrases:** Support for "crypto giveaway", "link in bio", etc.
-- **Console management:** Add/remove keywords via browser console
-- **Up to 1000 keywords** per type (2000 total)
+### 4. **Hide Ads** (Optional)
+- Removes promoted tweets from your timeline
 
-[📖 See Keyword Controls Guide](KEYWORDS_GUIDE.md)
+### 5. **Parody Account Detection** (Optional)
+- Automatically detects and hides parody/satire accounts
+
+---
 
 ## 🚀 Quick Start
 
 ### Installation
 
-1. **Download the extension**
-   ```bash
-   git clone https://github.com/yourusername/control-panel-for-x.git
-   cd control-panel-for-x
-   ```
+1. Download the extension ZIP file
+2. Extract to a folder
+3. Open Chrome: `chrome://extensions/`
+4. Enable "Developer mode" (top-right)
+5. Click "Load unpacked"
+6. Select the extracted folder
+7. Go to x.com and press F12 (console)
 
-2. **Install in Chrome**
-   - Open Chrome and go to `chrome://extensions/`
-   - Enable "Developer mode" (top-right toggle)
-   - Click "Load unpacked"
-   - Select the `control-panel-for-x` folder
-   - Done! ✅
+### First Commands
 
-3. **Configure (Optional)**
-   - Click the extension icon in your toolbar
-   - Enable "Hide ads" if desired
-   - Enable "keyword muting" or "keyword dropping" for keyword controls
-   - Click "Save Settings"
-
-4. **Add Keywords (Optional)**
-   - Press F12 on X.com to open console
-   - Type: `XControlPanel.help()`
-   - Add keywords: `XControlPanel.addMuteKeyword('crypto')`
-   - [📖 See Full Keyword Guide](KEYWORDS_GUIDE.md)
-
-### Alternative: Download Release
-
-Download the latest `.zip` from [Releases](https://github.com/yourusername/control-panel-for-x/releases) and follow step 2 above.
-
-## 📖 How It Works
-
-### Hide Verified Accounts
-
-```
-Following Timeline:
-├─ Shows ALL tweets (you follow everyone there)
-└─ No filtering needed
-
-For You Timeline:
-├─ ✅ Verified accounts you follow: VISIBLE
-├─ ❌ Verified accounts you don't follow: HIDDEN
-└─ ✅ Non-verified accounts: VISIBLE
-```
-
-**Result:** Clean timeline with only content you want!
-
-### Hide Ads
-
-Four detection methods work together:
-
-1. **Placement Tracking** - X's internal ad markers
-2. **"Promoted" Text** - Visual promoted labels
-3. **"Ad" Indicators** - Ad markers in content
-4. **Periodic Scanning** - Catches dynamically loaded ads (every 1s)
-
-## 🎮 Usage
-
-### Default Behavior
-- Extension works immediately after install
-- Verified accounts filtering is **ON by default**
-- Ad blocking is **OFF by default** (user choice)
-
-### Perfect Setup
-```
-✅ Hide verified accounts' tweets (default: ON)
-✅ Hide ads (toggle it ON)
-✅ Hide parody accounts (toggle it ON if desired)
-```
-This gives you a completely clean, organic timeline!
-
-## 💡 Why Just 3 Features?
-
-**Philosophy:** Do a few things excellently, not many things poorly.
-
-This extension focuses on the most requested features:
-- Hide verified spam (while keeping your follows)
-- Block ads
-- Filter parody accounts
-
-Simple, focused, and effective!
-
-## 🛠️ Technical Details
-
-### Files Structure
-```
-control-panel-for-x/
-├── manifest.json          # Extension configuration
-├── popup.html            # Settings UI
-├── popup.js              # Settings logic
-├── content.js            # Main functionality (5.7 KB)
-├── content.css           # Styling rules (1.2 KB)
-├── background.js         # Background worker (968 bytes)
-├── icons/                # Extension icons
-├── README.md             # This file
-├── LICENSE               # MIT License
-└── CONTRIBUTING.md       # Contribution guidelines
-```
-
-### Permissions
-- `storage` - Save your settings
-- `tabs` - Reload pages when settings change
-- `host_permissions` - Access twitter.com and x.com
-
-### Browser Support
-- ✅ Chrome (Recommended)
-- ✅ Edge
-- ✅ Brave
-- ✅ Opera
-- ✅ Any Chromium-based browser
-
-## 📊 Performance
-
-| Metric | Value |
-|--------|-------|
-| Extension Size | 12 KB |
-| Memory Usage | ~3 MB |
-| CPU Usage | <1% |
-| Ad Block Effectiveness | ~90% |
-| Code Lines | ~400 |
-
-## 🐛 Troubleshooting
-
-### Ads Still Showing?
-- X changes ad formats frequently
-- Refresh the page (Ctrl+R)
-- Click "Save Settings" again
-- Clear browser cache
-
-### Verified Tweets Still Showing?
 ```javascript
-// Check if feature is working (F12 console):
-document.body.classList.contains('xcp-hideCheckmarks')
-// Should return: true
+// See available commands
+XControlPanel.help()
+
+// Add spam keywords
+XControlPanel.addMuteKeyword('crypto')
+XControlPanel.addMuteKeyword('crypto giveaway')
+
+// Analyze a spammy account
+XControlPanel.analyzeAccount('username')
+
+// View your keywords
+XControlPanel.listMuteKeywords()
+
+// Check stats
+XControlPanel.stats()
 ```
-
-### Settings Not Saving?
-1. Ensure you clicked "Save Settings"
-2. Check extension is enabled at `chrome://extensions/`
-3. Try disabling/re-enabling extension
-
-## 🔒 Privacy & Security
-
-- ✅ **No data collection** - Zero tracking or analytics
-- ✅ **No external requests** - Everything runs locally
-- ✅ **Open source** - Review the code yourself
-- ✅ **Minimal permissions** - Only what's necessary
-- ✅ **Chrome sync** - Settings sync via your Google account (optional)
-
-## 📝 Changelog
-
-### v2.2.0 (Current)
-- ✨ **NEW:** Keyword-based muting and dropping
-- 🔇 MUTE keywords: Permanently mutes accounts via X's native system
-- 🗑️ DROP keywords: Hides tweets containing keywords (reversible)
-- 📝 Multi-word phrase support ("link in bio", "crypto giveaway", etc.)
-- 💻 Console management interface (add/remove/list keywords)
-- 📊 Statistics tracking (muted accounts, keyword counts)
-- 🎯 Up to 1000 keywords per type (2000 total)
-
-### v2.1.0
-- ✨ **NEW:** Hide parody accounts feature
-- 🎯 Smart detection of parody/fan/unofficial accounts
-- 🔍 Keyword matching in display names and bios
-- ⚙️ User-controlled toggle (off by default)
-
-### v2.0.0
-- 🎯 Simplified to 2 essential features
-- ✅ Hide verified accounts (enabled by default)
-- ✅ Improved ad blocking (4 detection methods)
-- ❌ Removed 14 rarely-used features
-- 🚀 92% code reduction
-- ⚡ 4x performance improvement
-
-[See full changelog](https://github.com/yourusername/control-panel-for-x/releases)
-
-## 🤝 Contributing
-
-Contributions are welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
-
-**Good contributions:**
-- ✅ Improve ad detection accuracy
-- ✅ Performance optimizations
-- ✅ Bug fixes
-- ✅ Documentation improvements
-
-**Not accepted:**
-- ❌ Adding new features (keeps extension simple)
-- ❌ Feature bloat
-- ❌ Increased complexity
-
-## 📄 License
-
-This project is licensed under the MIT License - see [LICENSE](LICENSE) file for details.
-
-## 🙏 Acknowledgments
-
-- Inspired by [Control Panel for Twitter](https://github.com/insin/control-panel-for-twitter) by @insin
-- Built for users who want a cleaner X experience
-- Simplified based on community feedback
-
-## 📮 Support
-
-- 🐛 [Report bugs](https://github.com/yourusername/control-panel-for-x/issues)
-- 💡 [Request features](https://github.com/yourusername/control-panel-for-x/issues) (for existing 2 features only)
-- 📖 [Read docs](README_EXTENSION.md) (detailed extension documentation)
-
-## ⭐ Star History
-
-If you find this extension useful, please consider giving it a star!
 
 ---
 
-**Made with ❤️ for a better X experience**
+## 📖 Console Commands Reference
 
-**Remember:** Less is more. 2 features done right. 🎯
+### Keyword Management
+
+```javascript
+// Add keywords (single or multi-word)
+XControlPanel.addMuteKeyword('crypto')
+XControlPanel.addMuteKeyword('link in bio')
+
+// Remove keywords
+XControlPanel.removeMuteKeyword('crypto')
+XControlPanel.removeMuteKeywordByIndex(0)
+
+// List all keywords
+XControlPanel.listMuteKeywords()
+
+// Search keywords
+XControlPanel.findKeyword('crypto')
+
+// Clear all keywords
+XControlPanel.clearMuteKeywords()
+```
+
+### Spam Analysis 🆕
+
+```javascript
+// Analyze an account's tweets for spam
+XControlPanel.analyzeAccount('username')
+```
+
+**Example Output:**
+```
+📊 Spam Analysis Results:
+   Spam Score: 85.0% 🔴 HIGH
+   Total spam indicators: 17
+   Tweets analyzed: 8
+
+🏷️ Spam Categories Detected:
+   Crypto/NFT (10 matches):
+      • "airdrop" - 4x (50% of tweets)
+      • "nft" - 3x (38% of tweets)
+
+💡 Suggested keywords to mute:
+   XControlPanel.addMuteKeyword('airdrop')
+   XControlPanel.addMuteKeyword('nft')
+```
+
+### Statistics & Tracking
+
+```javascript
+// View stats
+XControlPanel.stats()
+
+// List muted accounts
+XControlPanel.listMuted()
+
+// Clear tracking (accounts stay muted in X)
+XControlPanel.clearMutedTracking()
+```
+
+---
+
+## 🎮 Usage Examples
+
+### Block Crypto Spam
+
+```javascript
+['crypto', 'nft', 'airdrop', 'mint', 'whitelist'].forEach(k => 
+  XControlPanel.addMuteKeyword(k)
+);
+```
+
+### Analyze Before Blocking
+
+```javascript
+// Step 1: Analyze account
+XControlPanel.analyzeAccount('SpammyUser123')
+
+// Step 2: Copy suggested commands from output
+XControlPanel.addMuteKeyword('giveaway')
+```
+
+---
+
+## ⚠️ Important Warnings
+
+### Keyword Muting is Permanent
+
+- ✅ Mute persists across all devices
+- ✅ Account stays muted even if extension disabled
+- ❌ Must manually unmute via X Settings → "Muted accounts"
+
+### Analysis Limitations
+
+- Only sees tweets visible on current page
+- Works best with 5-20 tweets loaded
+- Scroll down on profile to load more before analyzing
+
+---
+
+## 🔍 Spam Categories
+
+1. **Giveaways**: giveaway, free, win, prize, contest
+2. **Crypto/NFT**: crypto, nft, airdrop, mint, whitelist, token, coin
+3. **Engagement Bait**: follow me, rt this, like and retweet
+4. **Call-to-Action**: link in bio, click here, dm me
+5. **Urgency**: urgent, hurry, limited time, act now
+6. **Money**: make money, earn cash, passive income
+
+---
+
+## 📊 Spam Score
+
+- 🟢 **0-40%**: LOW - Few spam indicators
+- 🟡 **40-70%**: MEDIUM - Multiple spam patterns
+- 🔴 **70-100%**: HIGH - Heavy spam activity
+
+---
+
+## 🔧 Troubleshooting
+
+**XControlPanel Not Defined:**
+1. Go to `chrome://extensions/`
+2. Click refresh icon (↻) on extension
+3. Go to X.com, press Ctrl+Shift+R
+4. Should see: "🎮 X Control Panel Loaded!"
+
+**Keywords Not Working:**
+1. Check setting: `XControlPanel.stats()`
+2. Enable in extension popup if needed
+3. Reload page
+
+---
+
+## 🆕 Changelog
+
+### v2.2.7 (Latest)
+- ✨ NEW: Account spam analysis tool
+- ✨ NEW: Spam score calculation
+- ✨ NEW: Automatic keyword suggestions
+- 📖 Updated documentation
+
+### v2.2.6
+- 🔧 Removed duplicate methods
+- 🎨 Cleaner API
+
+### v2.2.5
+- 🎉 FIXED: Console access via dual-script architecture
+- ✅ Chrome APIs working properly
+
+---
+
+## 💡 Pro Tips
+
+1. **Start small**: Add 5-10 keywords, test, expand
+2. **Use analysis**: Let the tool suggest keywords
+3. **Be specific**: "crypto giveaway" > "crypto"
+4. **Check stats**: Monitor muted accounts regularly
+
+---
+
+## 📄 License
+
+MIT License
+
+---
+
+**Happy filtering!** 🎉
+
+For help: `XControlPanel.help()`
