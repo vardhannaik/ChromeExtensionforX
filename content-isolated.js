@@ -589,6 +589,116 @@ console.log('🎮 X Control Panel: Starting backend...');
       };
     },
     
+    analyzeAccount: function(username) {
+      console.log(`\n🔍 Analyzing @${username}'s tweets...\n`);
+      
+      // Find all tweets from this account on the current page
+      const allArticles = document.querySelectorAll('article');
+      const userTweets = [];
+      
+      allArticles.forEach(article => {
+        const accountUsername = extractUsername(article);
+        if (accountUsername && accountUsername.toLowerCase() === username.toLowerCase()) {
+          const tweetText = article.textContent || '';
+          userTweets.push(tweetText);
+        }
+      });
+      
+      if (userTweets.length === 0) {
+        console.log(`❌ No tweets found from @${username} on current page`);
+        console.log(`💡 Try scrolling to load more tweets, or visit their profile`);
+        return;
+      }
+      
+      console.log(`✅ Found ${userTweets.length} tweet${userTweets.length > 1 ? 's' : ''} from @${username}\n`);
+      
+      // Spam indicators to look for
+      const spamPatterns = {
+        'Giveaways': ['giveaway', 'free', 'win', 'prize', 'contest'],
+        'Crypto/NFT': ['crypto', 'nft', 'airdrop', 'mint', 'whitelist', 'token', 'coin'],
+        'Engagement Bait': ['follow me', 'rt this', 'like and retweet', 'retweet for', 'follow for'],
+        'Call-to-Action': ['link in bio', 'click here', 'dm me', 'check out', 'visit my'],
+        'Urgency': ['urgent', 'hurry', 'limited time', 'act now', 'don\'t miss'],
+        'Money': ['make money', 'earn cash', 'get paid', 'passive income', 'financial freedom']
+      };
+      
+      // Count occurrences
+      const categoryMatches = {};
+      const wordFrequency = {};
+      
+      userTweets.forEach(tweet => {
+        const lowerTweet = tweet.toLowerCase();
+        
+        // Check each category
+        Object.keys(spamPatterns).forEach(category => {
+          spamPatterns[category].forEach(keyword => {
+            if (lowerTweet.includes(keyword)) {
+              if (!categoryMatches[category]) categoryMatches[category] = {};
+              if (!categoryMatches[category][keyword]) categoryMatches[category][keyword] = 0;
+              categoryMatches[category][keyword]++;
+              
+              // Track overall frequency
+              if (!wordFrequency[keyword]) wordFrequency[keyword] = 0;
+              wordFrequency[keyword]++;
+            }
+          });
+        });
+      });
+      
+      // Calculate spam score
+      const totalMatches = Object.values(wordFrequency).reduce((a, b) => a + b, 0);
+      const spamScore = Math.min(100, (totalMatches / userTweets.length) * 20);
+      
+      // Display results
+      console.log(`📊 Spam Analysis Results:\n`);
+      console.log(`   Spam Score: ${spamScore.toFixed(1)}% ${spamScore > 70 ? '🔴 HIGH' : spamScore > 40 ? '🟡 MEDIUM' : '🟢 LOW'}`);
+      console.log(`   Total spam indicators: ${totalMatches}`);
+      console.log(`   Tweets analyzed: ${userTweets.length}\n`);
+      
+      if (Object.keys(categoryMatches).length === 0) {
+        console.log(`✅ No obvious spam patterns detected`);
+        return;
+      }
+      
+      // Show matches by category
+      console.log(`🏷️  Spam Categories Detected:\n`);
+      
+      Object.keys(categoryMatches).sort().forEach(category => {
+        const keywords = categoryMatches[category];
+        const categoryTotal = Object.values(keywords).reduce((a, b) => a + b, 0);
+        
+        console.log(`   ${category} (${categoryTotal} matches):`);
+        
+        Object.keys(keywords).sort((a, b) => keywords[b] - keywords[a]).forEach(keyword => {
+          const count = keywords[keyword];
+          const percentage = ((count / userTweets.length) * 100).toFixed(0);
+          console.log(`      • "${keyword}" - ${count}x (${percentage}% of tweets)`);
+        });
+        console.log('');
+      });
+      
+      // Suggest keywords to add
+      const topKeywords = Object.keys(wordFrequency)
+        .sort((a, b) => wordFrequency[b] - wordFrequency[a])
+        .slice(0, 5)
+        .filter(k => wordFrequency[k] >= 2); // Only suggest if appears 2+ times
+      
+      if (topKeywords.length > 0) {
+        console.log(`💡 Suggested keywords to mute:\n`);
+        topKeywords.forEach(keyword => {
+          const count = wordFrequency[keyword];
+          console.log(`   XControlPanel.addMuteKeyword('${keyword}')  // appears ${count}x`);
+        });
+        console.log('');
+        
+        // Bulk add command
+        console.log(`📋 Or add all at once:`);
+        console.log(`   [${topKeywords.map(k => `'${k}'`).join(', ')}].forEach(k => XControlPanel.addMuteKeyword(k))`);
+      }
+      
+      console.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+    },
+    
     // ========== HELP ==========
     
     help: function() {
@@ -683,6 +793,10 @@ Type: XControlPanel.help()
   
   window.addEventListener('XCP_STATS', () => {
     window.XControlPanel.stats();
+  });
+  
+  window.addEventListener('XCP_ANALYZE_ACCOUNT', (e) => {
+    window.XControlPanel.analyzeAccount(e.detail.username);
   });
   
   window.addEventListener('XCP_LIST_MUTED', () => {

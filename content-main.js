@@ -42,6 +42,15 @@ window.XControlPanel = {
     console.log('⏳ Loading stats...');
   },
   
+  analyzeAccount: function(username) {
+    if (!username) {
+      console.error('❌ Usage: XControlPanel.analyzeAccount("username")');
+      return;
+    }
+    window.dispatchEvent(new CustomEvent('XCP_ANALYZE_ACCOUNT', { detail: { username } }));
+    console.log(`⏳ Analyzing @${username}'s tweets for spam patterns...`);
+  },
+  
   listMuted: function() {
     window.dispatchEvent(new CustomEvent('XCP_LIST_MUTED'));
     console.log('⏳ Loading muted accounts...');
@@ -91,6 +100,7 @@ STATS & TRACKING:
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
   XControlPanel.stats()
+  XControlPanel.analyzeAccount('username')
   XControlPanel.listMuted()
   XControlPanel.clearMutedTracking()
 
