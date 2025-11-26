@@ -5,7 +5,8 @@ const DEFAULT_SETTINGS = {
   hideCheckmarks: true,  // Enabled by default
   hideAds: false,
   hideParody: false,
-  keywordMutingEnabled: false
+  keywordMutingEnabled: false,
+  hideMediaOnlyTweets: false
 };
 
 // Initialize default settings on install

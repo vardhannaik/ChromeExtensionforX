@@ -14,7 +14,8 @@ console.log('🎮 X Control Panel: Starting backend...');
       hideCheckmarks: true, 
       hideAds: false, 
       hideParody: false,
-      keywordMutingEnabled: false
+      keywordMutingEnabled: false,
+      hideMediaOnlyTweets: false
     };
     console.log('Control Panel for X: Settings loaded', settings);
   } catch (error) {
@@ -23,7 +24,8 @@ console.log('🎮 X Control Panel: Starting backend...');
       hideCheckmarks: true, 
       hideAds: false, 
       hideParody: false,
-      keywordMutingEnabled: false
+      keywordMutingEnabled: false,
+      hideMediaOnlyTweets: false
     };
   }
 
@@ -369,6 +371,71 @@ console.log('🎮 X Control Panel: Starting backend...');
     });
   }
 
+  // Hide media-only tweets (image/video with no text)
+  function hideMediaOnlyTweets() {
+    if (!settings.hideMediaOnlyTweets) return;
+
+    const articles = document.querySelectorAll('article');
+    
+    articles.forEach(article => {
+      if (article.hasAttribute('data-xcp-mediaonly-processed')) return;
+
+      // Check if tweet has media
+      const hasPhoto = article.querySelector('[data-testid="tweetPhoto"]');
+      const hasVideo = article.querySelector('video');
+      const hasGif = article.querySelector('[data-testid="tweetGif"]');
+      const hasMedia = hasPhoto || hasVideo || hasGif;
+
+      if (!hasMedia) {
+        article.setAttribute('data-xcp-mediaonly-processed', 'true');
+        return;
+      }
+
+      // Extract real text (not username, dates, UI elements)
+      const tweetTextElement = article.querySelector('[data-testid="tweetText"]');
+      
+      if (!tweetTextElement) {
+        // Has media but no text element = media-only tweet
+        const cell = article.closest('[data-testid="cellInnerDiv"]') || article;
+        cell.style.display = 'none';
+        article.setAttribute('data-xcp-mediaonly-processed', 'true');
+        return;
+      }
+
+      // Get text content
+      let text = tweetTextElement.textContent || '';
+      
+      // Remove UI noise (but keep hashtags, URLs, emojis)
+      // Remove mentions
+      text = text.replace(/@\w+/g, '');
+      
+      // Remove common UI text patterns
+      text = text.replace(/Show more/gi, '');
+      text = text.replace(/Show less/gi, '');
+      text = text.replace(/Translate post/gi, '');
+      text = text.replace(/Show this thread/gi, '');
+      
+      // Remove timestamps and dates (but this is usually not in tweetText)
+      text = text.replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '');
+      text = text.replace(/\d{1,2}h/g, '');
+      text = text.replace(/\d{1,2}m/g, '');
+      text = text.replace(/\d{1,2}s/g, '');
+      
+      // Trim whitespace
+      text = text.trim();
+      
+      // If text length is 0 after cleaning, hide it
+      if (text.length === 0) {
+        const cell = article.closest('[data-testid="cellInnerDiv"]') || article;
+        cell.style.display = 'none';
+        article.setAttribute('data-xcp-mediaonly-processed', 'true');
+      } else {
+        article.setAttribute('data-xcp-mediaonly-processed', 'true');
+      }
+    });
+  }
+
+
   // Hide parody accounts
   function hideParodyAccounts() {
     if (!settings.hideParody) return;
@@ -427,6 +494,7 @@ console.log('🎮 X Control Panel: Starting backend...');
     hideVerifiedTweets();
     hidePromotedContent();
     hideParodyAccounts();
+    hideMediaOnlyTweets();
   }
 
   // Observer to handle dynamic content
