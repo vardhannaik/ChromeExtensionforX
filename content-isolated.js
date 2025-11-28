@@ -59,14 +59,18 @@ console.log('🎮 X Control Panel: Starting backend...');
   let muteKeywords = [];
   let mutedAccounts = [];
   const mutedThisSession = new Set();
-  const muteQueue = [];
-  let isProcessingQueue = false;
+
+  // Batch mute queue - Array maintains insertion order (FIFO)
+  let batchMuteQueue = []; // Array of {username, reason, addedAt}
 
   // Load keywords from storage
   async function loadKeywords() {
-    const data = await chrome.storage.local.get(['muteKeywords', 'mutedAccounts']);
+    const data = await chrome.storage.local.get(['muteKeywords', 'mutedAccounts', 'batchMuteQueue']);
     muteKeywords = data.muteKeywords || [];
     mutedAccounts = data.mutedAccounts || [];
+    
+    // Load batch queue from storage
+    batchMuteQueue = data.batchMuteQueue || [];
     
     // Add existing muted accounts to session cache
     mutedAccounts.forEach(m => mutedThisSession.add(m.username));
@@ -77,93 +81,90 @@ console.log('🎮 X Control Panel: Starting backend...');
   await loadKeywords();
 
   // ============================================
-  // MUTE QUEUE SYSTEM
+  // BATCH MUTE QUEUE (MANUAL ONLY)
   // ============================================
 
-  async function addToMuteQueue(tweetElement, username, keyword) {
-    // Check if already muted
-    if (mutedThisSession.has(username)) {
+  async function addToBatchQueue(username, reason) {
+    // Check if already in queue
+    const exists = batchMuteQueue.some(item => 
+      item.username.toLowerCase() === username.toLowerCase()
+    );
+    
+    if (exists || mutedThisSession.has(username)) {
       return;
     }
 
-    // SAFETY CHECK: Don't mute accounts you follow
-    if (isFollowedAccount(tweetElement)) {
-      console.log(`⚠️  Skipping @${username} - You follow this account (keyword: "${keyword}")`);
-      return;
-    }
-
-    muteQueue.push({ tweetElement, username, keyword });
+    // Add to end of queue (FIFO order)
+    batchMuteQueue.push({
+      username: username,
+      reason: reason,
+      addedAt: Date.now()
+    });
+    
     mutedThisSession.add(username);
-
-    if (!isProcessingQueue) {
-      processMuteQueue();
-    }
+    
+    // Save to storage
+    await saveBatchQueue();
+  }
+  
+  async function saveBatchQueue() {
+    await chrome.storage.local.set({ batchMuteQueue });
   }
 
-  async function processMuteQueue() {
-    if (muteQueue.length === 0) {
-      isProcessingQueue = false;
+  async function addToMuteQueue(tweetElement, username, keyword) {
+    // SAFETY CHECK: Don't add accounts you follow
+    if (isFollowedAccount(tweetElement)) {
       return;
     }
 
-    isProcessingQueue = true;
-    const { tweetElement, username, keyword } = muteQueue.shift();
-
-    console.log(`🔇 Attempting to mute @${username} (keyword: "${keyword}")`);
-
-    const success = await muteUsernameViaUI(tweetElement, username);
-
-    if (success) {
-      // Track in storage
-      await markAsMuted(username, `keyword:${keyword}`);
-      showNotification(`Muted @${username}`, `Keyword: "${keyword}"`, 'mute');
-    }
-
-    // Wait 1 second before next mute (avoid rate limits)
-    setTimeout(() => {
-      processMuteQueue();
-    }, 1000);
+    // Silently add to batch queue with keyword as reason
+    await addToBatchQueue(username, keyword);
   }
 
-  async function muteUsernameViaUI(tweetElement, username) {
-    try {
-      // Find the "..." menu button
-      const menuButton = tweetElement.querySelector('[data-testid="caret"]');
-      if (!menuButton) {
-        console.warn('Menu button not found');
-        return false;
-      }
 
-      // Click to open menu
-      menuButton.click();
+  // ============================================
+  // BATCH MUTING FOR FAILED ATTEMPTS
+  // ============================================
 
-      // Wait for menu to appear
-      await sleep(300);
 
-      // Find "Mute @username" option
-      const muteButton = Array.from(document.querySelectorAll('[role="menuitem"]'))
-        .find(item => item.textContent.includes('Mute'));
+  // Old functions removed - using simple batchMuteQueue Map now
 
-      if (!muteButton) {
-        console.warn('Mute button not found in menu');
-        // Close menu by clicking elsewhere
-        document.body.click();
-        return false;
-      }
 
-      // Click to mute
-      muteButton.click();
+  // Idle detection and popups removed - purely manual now
 
-      // Wait for action to complete
-      await sleep(200);
-
-      console.log(`✅ Successfully muted @${username} via X's UI`);
-      return true;
-
-    } catch (error) {
-      console.error('Error muting username:', error);
-      return false;
+  async function batchMuteViaProfiles() {
+    if (batchMuteQueue.length === 0) {
+      console.log('✅ No accounts in batch queue');
+      return;
     }
+    
+    console.log(`\n📋 Accounts to Mute Manually (${batchMuteQueue.length}):`);
+    console.log('═'.repeat(70));
+    
+    const now = Date.now();
+    batchMuteQueue.forEach((item, index) => {
+      const minutesAgo = Math.floor((now - item.addedAt) / 60000);
+      const timeStr = minutesAgo < 1 ? 'just now' : `${minutesAgo}m ago`;
+      
+      console.log(`  ${index + 1}. @${item.username} → https://x.com/${item.username}`);
+      console.log(`     Reason: ${item.reason} | Added: ${timeStr}`);
+    });
+    
+    console.log('═'.repeat(70));
+    console.log(`\n💡 How to mute these accounts:`);
+    console.log(`   Option 1: Run XCP.autoMute() for automatic batch muting`);
+    console.log(`   Option 2: Visit each profile link above and click More → Mute`);
+    console.log(`   Option 3: Go to X Settings → Privacy → Muted accounts`);
+    console.log(`\n💡 After muting, clear them from queue:`);
+    console.log(`   XCP.clearQueue('1-10')  // Clear first 10`);
+    console.log(`   XCP.clearQueue('all')    // Clear all\n`);
+    
+    // Show notification
+    showNotification(
+      `${batchMuteQueue.length} accounts to mute`,
+      'Run XCP.autoMute() or check console',
+      'info'
+    );
   }
 
   function sleep(ms) {
@@ -191,11 +192,10 @@ console.log('🎮 X Control Panel: Starting backend...');
     const tweetText = tweetElement.textContent.toLowerCase();
     const username = extractUsername(tweetElement);
 
-    // Check MUTE keywords
+    // Check MUTE keywords (silent addition to batch queue)
     if (username) {
       for (const keyword of muteKeywords) {
         if (tweetText.includes(keyword)) {
-          console.log(`🔇 MUTE keyword match: "${keyword}" in @${username}'s tweet`);
           await addToMuteQueue(tweetElement, username, keyword);
           return { action: 'mute', keyword, username };
         }
@@ -371,14 +371,14 @@ console.log('🎮 X Control Panel: Starting backend...');
     });
   }
 
-  // Hide media-only tweets (image/video with no text)
-  function hideMediaOnlyTweets() {
+  // Hide media-only tweets (image/video with no text) and mute the account
+  async function hideMediaOnlyTweets() {
     if (!settings.hideMediaOnlyTweets) return;
 
     const articles = document.querySelectorAll('article');
     
-    articles.forEach(article => {
-      if (article.hasAttribute('data-xcp-mediaonly-processed')) return;
+    for (const article of articles) {
+      if (article.hasAttribute('data-xcp-mediaonly-processed')) continue;
 
       // Check if tweet has media
       const hasPhoto = article.querySelector('[data-testid="tweetPhoto"]');
@@ -388,51 +388,49 @@ console.log('🎮 X Control Panel: Starting backend...');
 
       if (!hasMedia) {
         article.setAttribute('data-xcp-mediaonly-processed', 'true');
-        return;
+        continue;
       }
 
       // Extract real text (not username, dates, UI elements)
       const tweetTextElement = article.querySelector('[data-testid="tweetText"]');
       
-      if (!tweetTextElement) {
-        // Has media but no text element = media-only tweet
-        const cell = article.closest('[data-testid="cellInnerDiv"]') || article;
-        cell.style.display = 'none';
-        article.setAttribute('data-xcp-mediaonly-processed', 'true');
-        return;
+      let text = '';
+      if (tweetTextElement) {
+        text = tweetTextElement.textContent || '';
+        
+        // Remove UI noise (but keep hashtags, URLs, emojis)
+        text = text.replace(/@\w+/g, ''); // Remove mentions
+        text = text.replace(/Show more/gi, '');
+        text = text.replace(/Show less/gi, '');
+        text = text.replace(/Translate post/gi, '');
+        text = text.replace(/Show this thread/gi, '');
+        text = text.replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '');
+        text = text.replace(/\d{1,2}h/g, '');
+        text = text.replace(/\d{1,2}m/g, '');
+        text = text.replace(/\d{1,2}s/g, '');
+        text = text.trim();
       }
-
-      // Get text content
-      let text = tweetTextElement.textContent || '';
       
-      // Remove UI noise (but keep hashtags, URLs, emojis)
-      // Remove mentions
-      text = text.replace(/@\w+/g, '');
-      
-      // Remove common UI text patterns
-      text = text.replace(/Show more/gi, '');
-      text = text.replace(/Show less/gi, '');
-      text = text.replace(/Translate post/gi, '');
-      text = text.replace(/Show this thread/gi, '');
-      
-      // Remove timestamps and dates (but this is usually not in tweetText)
-      text = text.replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '');
-      text = text.replace(/\d{1,2}h/g, '');
-      text = text.replace(/\d{1,2}m/g, '');
-      text = text.replace(/\d{1,2}s/g, '');
-      
-      // Trim whitespace
-      text = text.trim();
-      
-      // If text length is 0 after cleaning, hide it
+      // If has media and text length is 0, it's media-only spam
       if (text.length === 0) {
-        const cell = article.closest('[data-testid="cellInnerDiv"]') || article;
-        cell.style.display = 'none';
-        article.setAttribute('data-xcp-mediaonly-processed', 'true');
+        const username = extractUsername(article);
+        
+        if (username) {
+          // SAFETY CHECK: Don't add accounts you follow
+          if (!isFollowedAccount(article)) {
+            // Silently add to batch queue
+            await addToBatchQueue(username, 'media-only');
+          }
+          
+          // Mark as processed
+          article.setAttribute('data-xcp-mediaonly-processed', 'true');
+        } else {
+          article.setAttribute('data-xcp-mediaonly-processed', 'true');
+        }
       } else {
         article.setAttribute('data-xcp-mediaonly-processed', 'true');
       }
-    });
+    }
   }
 
 
@@ -1065,6 +1063,119 @@ console.log('🎮 X Control Panel: Starting backend...');
       console.log(`═══════════════════════════════════════════════════════\n`);
     },
     
+    // ========== AUTO MUTE ==========
+    
+    autoMute: async function(range) {
+      if (batchMuteQueue.length === 0) {
+        console.log('✅ No accounts in queue to mute');
+        return;
+      }
+      
+      let accountsToMute = [];
+      
+      // Parse range if provided
+      if (!range || range === 'all') {
+        accountsToMute = [...batchMuteQueue];
+      } else if (typeof range === 'string' && range.includes('-')) {
+        // Range: "1-10"
+        const [start, end] = range.split('-').map(n => parseInt(n.trim()));
+        if (isNaN(start) || isNaN(end)) {
+          console.error('❌ Invalid range. Use: XCP.autoMute("1-10")');
+          return;
+        }
+        accountsToMute = batchMuteQueue.slice(start - 1, end);
+      } else if (typeof range === 'number') {
+        // Single number
+        if (range > 0 && range <= batchMuteQueue.length) {
+          accountsToMute = [batchMuteQueue[range - 1]];
+        }
+      }
+      
+      if (accountsToMute.length === 0) {
+        console.error('❌ No accounts selected');
+        return;
+      }
+      
+      console.log(`🚀 Starting auto-mute for ${accountsToMute.length} accounts...`);
+      console.log(`⏳ This will take approximately ${Math.ceil(accountsToMute.length * 3.5)} seconds\n`);
+      
+      // Send to background script
+      const response = await chrome.runtime.sendMessage({
+        action: 'autoMute',
+        accounts: accountsToMute,
+        options: { delay: 2000 }
+      });
+      
+      if (response.success) {
+        // Remove successfully muted accounts from queue
+        const successfulUsernames = response.results
+          .filter(r => r.success)
+          .map(r => r.username.toLowerCase());
+        
+        batchMuteQueue = batchMuteQueue.filter(item => 
+          !successfulUsernames.includes(item.username.toLowerCase())
+        );
+        
+        await saveBatchQueue();
+        
+        console.log(`\n📊 Results:`);
+        console.log(`   ✅ Successfully muted: ${response.successCount}`);
+        console.log(`   ❌ Failed: ${accountsToMute.length - response.successCount}`);
+        console.log(`   📋 Remaining in queue: ${batchMuteQueue.length}`);
+        
+        if (batchMuteQueue.length === 0) {
+          console.log(`\n🎉 Queue is now empty!`);
+        }
+      } else {
+        console.error('❌ Auto-mute failed:', response.error);
+      }
+    },
+    
+    // Remove any followed accounts from queue
+    removeFollowedFromQueue: async function() {
+      if (batchMuteQueue.length === 0) {
+        console.log('✅ Queue is empty');
+        return;
+      }
+      
+      console.log(`🔍 Checking ${batchMuteQueue.length} accounts for followed accounts...`);
+      
+      const before = batchMuteQueue.length;
+      const removed = [];
+      
+      // Check each account on timeline
+      const allTweets = document.querySelectorAll('article');
+      const followedUsernames = new Set();
+      
+      allTweets.forEach(tweet => {
+        if (isFollowedAccount(tweet)) {
+          const username = extractUsername(tweet);
+          if (username) {
+            followedUsernames.add(username.toLowerCase());
+          }
+        }
+      });
+      
+      // Remove followed accounts from queue
+      batchMuteQueue = batchMuteQueue.filter(item => {
+        const isFollowed = followedUsernames.has(item.username.toLowerCase());
+        if (isFollowed) {
+          removed.push(item.username);
+        }
+        return !isFollowed;
+      });
+      
+      await saveBatchQueue();
+      
+      if (removed.length > 0) {
+        console.log(`✅ Removed ${removed.length} followed account(s):`);
+        removed.forEach(u => console.log(`   - @${u}`));
+        console.log(`\n📊 Remaining: ${batchMuteQueue.length} accounts`);
+      } else {
+        console.log('✅ No followed accounts found in queue');
+      }
+    },
+    
     // ========== HELP ==========
     
     help: function() {
@@ -1171,6 +1282,132 @@ Type: XControlPanel.help()
   
   window.addEventListener('XCP_CLEAR_TRACKING', async () => {
     await window.XControlPanel.clearMutedTracking();
+  });
+  
+  window.addEventListener('XCP_LIST_FAILED', async () => {
+    if (batchMuteQueue.length === 0) {
+      console.log('✅ No accounts in batch queue');
+      return;
+    }
+    
+    console.log(`\n📋 Batch Mute Queue (${batchMuteQueue.length} accounts):\n`);
+    console.log('═'.repeat(70));
+    
+    const now = Date.now();
+    batchMuteQueue.forEach((item, index) => {
+      const minutesAgo = Math.floor((now - item.addedAt) / 60000);
+      const timeStr = minutesAgo < 1 ? 'just now' : `${minutesAgo}m ago`;
+      
+      console.log(`${index + 1}. @${item.username}`);
+      console.log(`   Reason: ${item.reason} | Added: ${timeStr}`);
+    });
+    
+    console.log('═'.repeat(70));
+    console.log(`\nRun: XCP.exportQueue() for full list with links`);
+    console.log(`Run: XCP.autoMute() to mute automatically`);
+  });
+  
+  window.addEventListener('XCP_BATCH_MUTE_NOW', async () => {
+    await batchMuteViaProfiles();
+  });
+  
+  window.addEventListener('XCP_AUTO_MUTE', async (event) => {
+    const range = event.detail?.range;
+    await window.XControlPanel.autoMute(range);
+  });
+  
+  window.addEventListener('XCP_CLEAR_MUTED', async (event) => {
+    const range = event.detail?.range;
+    
+    if (!range) {
+      console.error('❌ No range specified');
+      return;
+    }
+    
+    if (batchMuteQueue.length === 0) {
+      console.log('✅ No accounts in queue');
+      return;
+    }
+    
+    const originalCount = batchMuteQueue.length;
+    
+    // Parse range
+    if (range.toLowerCase() === 'all') {
+      // Clear all
+      batchMuteQueue = [];
+      await saveBatchQueue();
+      console.log(`✅ Cleared all ${originalCount} account(s)`);
+      console.log('🎉 Queue empty!');
+      return;
+    }
+    
+    let indicesToRemove = [];
+    
+    if (range.includes('-')) {
+      // Range: "1-15"
+      const [start, end] = range.split('-').map(n => parseInt(n.trim()));
+      if (isNaN(start) || isNaN(end)) {
+        console.error('❌ Invalid range format. Use: "1-15"');
+        return;
+      }
+      for (let i = start - 1; i < end && i < originalCount; i++) {
+        if (i >= 0) indicesToRemove.push(i);
+      }
+    } else if (range.includes(',')) {
+      // Multiple: "1,3,5"
+      const numbers = range.split(',').map(n => parseInt(n.trim()));
+      for (const num of numbers) {
+        if (!isNaN(num) && num > 0 && num <= originalCount) {
+          indicesToRemove.push(num - 1);
+        }
+      }
+    } else if (!isNaN(parseInt(range))) {
+      // Single number: "5"
+      const num = parseInt(range);
+      if (num > 0 && num <= originalCount) {
+        indicesToRemove.push(num - 1);
+      }
+    } else {
+      // Username: "BitcoinMagazine"
+      const username = range.replace('@', '').toLowerCase();
+      const index = batchMuteQueue.findIndex(item => 
+        item.username.toLowerCase() === username
+      );
+      if (index >= 0) {
+        const removed = batchMuteQueue[index];
+        batchMuteQueue.splice(index, 1);
+        await saveBatchQueue();
+        console.log(`✅ Removed @${removed.username}`);
+        console.log(`📊 Remaining: ${batchMuteQueue.length} accounts`);
+        return;
+      } else {
+        console.error(`❌ Username not found: ${range}`);
+        return;
+      }
+    }
+    
+    if (indicesToRemove.length === 0) {
+      console.error('❌ No valid accounts to remove');
+      return;
+    }
+    
+    // Remove accounts (reverse order to preserve indices)
+    const removed = [];
+    indicesToRemove.sort((a, b) => b - a);
+    for (const index of indicesToRemove) {
+      removed.push(batchMuteQueue[index].username);
+      batchMuteQueue.splice(index, 1);
+    }
+    
+    await saveBatchQueue();
+    
+    console.log(`✅ Removed ${removed.length} account(s):`);
+    removed.forEach(username => console.log(`   - @${username}`));
+    console.log(`\n📊 Remaining: ${batchMuteQueue.length} accounts`);
+    
+    if (batchMuteQueue.length === 0) {
+      console.log('🎉 All accounts cleared!');
+    }
   });
 
 })().catch(error => {

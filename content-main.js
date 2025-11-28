@@ -63,6 +63,38 @@ window.XControlPanel = {
     }
   },
   
+  listFailedMutes: function() {
+    window.dispatchEvent(new CustomEvent('XCP_LIST_FAILED'));
+    console.log('⏳ Loading failed mutes...');
+  },
+  
+  batchMuteNow: function() {
+    window.dispatchEvent(new CustomEvent('XCP_BATCH_MUTE_NOW'));
+    console.log('⏳ Starting batch mute...');
+  },
+  
+  autoMute: function(range) {
+    window.dispatchEvent(new CustomEvent('XCP_AUTO_MUTE', { detail: { range } }));
+    console.log('⏳ Starting auto-mute...');
+  },
+  
+  clearMuted: function(range) {
+    if (!range) {
+      console.error('❌ Usage: XControlPanel.clearMuted(range)');
+      console.log('Examples:');
+      console.log('  XControlPanel.clearMuted("all")        - Clear all accounts');
+      console.log('  XControlPanel.clearMuted("1-15")       - Clear accounts 1 through 15');
+      console.log('  XControlPanel.clearMuted("1,3,5")      - Clear specific accounts');
+      console.log('  XControlPanel.clearMuted("username")   - Clear specific username');
+      return;
+    }
+    
+    window.dispatchEvent(new CustomEvent('XCP_CLEAR_MUTED', { 
+      detail: { range: range.toString() }
+    }));
+    console.log(`⏳ Clearing accounts: ${range}`);
+  },
+  
   help: function() {
     console.log(`
 🎮 X Control Panel - Console Commands
@@ -103,6 +135,18 @@ STATS & TRACKING:
   XControlPanel.analyzeAccount('username')
   XControlPanel.listMuted()
   XControlPanel.clearMutedTracking()
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+BATCH MUTING (Failed Retries):
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+  XControlPanel.listFailedMutes()
+  XControlPanel.batchMuteNow()
+  
+  XControlPanel.clearMuted('all')         // Clear all
+  XControlPanel.clearMuted('1-15')        // Clear 1 through 15
+  XControlPanel.clearMuted('1,3,5')       // Clear specific numbers
+  XControlPanel.clearMuted('BitcoinMag')  // Clear by username
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 BULK ADD:
