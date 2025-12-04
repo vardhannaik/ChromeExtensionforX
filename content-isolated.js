@@ -169,7 +169,11 @@ console.log('🎮 X Control Panel: Starting backend...');
     
     // Check if already running
     if (isAutoMuting || autoMutePromise) {
-      return; // Skip - already processing
+      // Wait for current auto-mute to complete before checking again
+      if (autoMutePromise) {
+        await autoMutePromise;
+      }
+      return;
     }
     
     const threshold = settings.autoMuteThreshold || 10;
@@ -214,6 +218,10 @@ console.log('🎮 X Control Panel: Starting backend...');
           }
         }
       })();
+      
+      // CRITICAL: Await the promise so addToBatchQueue doesn't continue
+      // This prevents multiple concurrent auto-mute triggers
+      await autoMutePromise;
     }
   }
 
