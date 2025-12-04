@@ -187,6 +187,109 @@
   </div>
 
   <div class="section">
+    <div class="section-title">Auto-Mute</div>
+    
+    <div class="option">
+      <div>
+        <div class="option-label">Enable automatic muting</div>
+        <div class="option-description">Auto-trigger mute when queue reaches threshold</div>
+      </div>
+      <div class="toggle" data-setting="autoMuteEnabled"></div>
+    </div>
+
+    <div class="option">
+      <div style="flex: 1;">
+        <div class="option-label">Auto-mute threshold</div>
+        <div class="option-description">Number of accounts before auto-mute triggers</div>
+      </div>
+      <select id="autoMuteThreshold" style="
+        background: #192734;
+        color: #fff;
+        border: 1px solid #38444d;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        outline: none;
+      ">
+        <option value="5">5 accounts</option>
+        <option value="10" selected>10 accounts</option>
+        <option value="15">15 accounts</option>
+        <option value="20">20 accounts</option>
+        <option value="30">30 accounts</option>
+        <option value="50">50 accounts</option>
+      </select>
+    </div>
+
+    <div class="option">
+      <div style="flex: 1;">
+        <div class="option-label">Delay between accounts</div>
+        <div class="option-description">Time to wait between each account</div>
+      </div>
+      <select id="autoMuteDelay" style="
+        background: #192734;
+        color: #fff;
+        border: 1px solid #38444d;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        outline: none;
+      ">
+        <option value="1000">1 second</option>
+        <option value="2000" selected>2 seconds</option>
+        <option value="3000">3 seconds</option>
+        <option value="5000">5 seconds</option>
+      </select>
+    </div>
+
+    <div class="option">
+      <div style="flex: 1;">
+        <div class="option-label">Page load timeout</div>
+        <div class="option-description">Max time to wait for page to load</div>
+      </div>
+      <select id="pageLoadTimeout" style="
+        background: #192734;
+        color: #fff;
+        border: 1px solid #38444d;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        outline: none;
+      ">
+        <option value="5000">5 seconds</option>
+        <option value="10000" selected>10 seconds</option>
+        <option value="15000">15 seconds</option>
+        <option value="20000">20 seconds</option>
+      </select>
+    </div>
+
+    <div class="option" style="border-bottom: none;">
+      <div style="flex: 1;">
+        <div class="option-label">SPA render delay</div>
+        <div class="option-description">Wait time for React to render profile</div>
+      </div>
+      <select id="spaRenderDelay" style="
+        background: #192734;
+        color: #fff;
+        border: 1px solid #38444d;
+        border-radius: 6px;
+        padding: 6px 12px;
+        font-size: 14px;
+        cursor: pointer;
+        outline: none;
+      ">
+        <option value="500">0.5 seconds</option>
+        <option value="1000">1 second</option>
+        <option value="1500" selected>1.5 seconds</option>
+        <option value="2000">2 seconds</option>
+        <option value="3000">3 seconds</option>
+      </select>
+    </div>
+  </div>
+
+  <div class="section">
     <div class="section-title">Statistics</div>
     <div style="font-size: 13px; color: #8899a6; line-height: 1.6;">
       <div style="display: flex; justify-content: space-between; padding: 4px 0;">

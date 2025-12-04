@@ -1,35 +1,50 @@
 # Control Panel for X (Twitter)
 
-**Version 2.2.7** - Chrome Extension for advanced X/Twitter filtering
+**Version 9.0.0** - Chrome Extension for advanced X/Twitter filtering
 
-Clean up your X timeline by automatically muting spammy accounts based on keywords, hiding verified checkmarks, ads, and parody accounts.
+Clean up your X timeline with **automated account muting**, keyword detection, and advanced filtering. Set it and forget it!
 
 ---
 
 ## 🎯 Features
 
-### 1. **Keyword-Based Auto-Muting** ⭐
-- Automatically mutes accounts when their tweets contain specific keywords
-- Permanent muting via X's native system
+### 1. **Auto-Mute System** ⭐ NEW in v9.0
+- **Automatic triggering** when queue reaches threshold (e.g., 10 accounts)
+- **Silent keyword detection** - no interruptions
+- **Minimized/hidden window processing** - runs in background
+- **MutationObserver technology** - ~95% success rate
+- **FIFO queue** with timestamps
+- **Configurable delays** (1-5 seconds between accounts)
+- **Triple-layer follow protection** - never mutes accounts you follow
+
+**Set it once, never think about it again!**
+
+### 2. **Keyword-Based Detection**
+- Silently detects accounts when tweets contain keywords
+- Adds to queue automatically
 - Multi-word phrase support (e.g., "crypto giveaway", "link in bio")
 - Console-based management (up to 1000 keywords)
-- Queue system prevents rate limiting (1 mute per second)
+- No manual intervention required
 
-### 2. **Spam Analysis Tool** 🆕 v2.2.7
+### 3. **Spam Analysis Tool**
 - Analyze any account's tweets for spam patterns
 - Get spam score (0-100%) with category breakdown
 - Automatic keyword suggestions based on analysis
 - 6 spam categories: Giveaways, Crypto/NFT, Engagement Bait, CTAs, Urgency, Money schemes
 
-### 3. **Hide Verified Checkmarks** (ON by default)
+### 4. **Hide Verified Checkmarks** (ON by default)
 - Hides tweets from verified accounts you don't follow
 - Keeps tweets from accounts you follow visible
 
-### 4. **Hide Ads** (Optional)
+### 5. **Hide Ads** (Optional)
 - Removes promoted tweets from your timeline
 
-### 5. **Parody Account Detection** (Optional)
+### 6. **Parody Account Detection** (Optional)
 - Automatically detects and hides parody/satire accounts
+
+### 7. **Media-Only Spam Detection** (Optional)
+- Detects accounts posting only images/videos with no text
+- Automatically adds to mute queue
 
 ---
 
@@ -43,31 +58,71 @@ Clean up your X timeline by automatically muting spammy accounts based on keywor
 4. Enable "Developer mode" (top-right)
 5. Click "Load unpacked"
 6. Select the extracted folder
+
+### Setup Auto-Mute (Recommended)
+
+1. Click the extension icon (puzzle piece in toolbar)
+2. Toggle **"Enable keyword muting"** ON
+3. Toggle **"Enable automatic muting"** ON
+4. Set **threshold**: `10 accounts` (or your preference)
+5. Set **delay**: `2 seconds` (recommended)
+6. Click **"Save Settings"**
 7. Go to x.com and press F12 (console)
 
-### First Commands
+### Add Keywords
 
 ```javascript
 // See available commands
 XControlPanel.help()
 
-// Add spam keywords
-XControlPanel.addMuteKeyword('crypto')
-XControlPanel.addMuteKeyword('crypto giveaway')
+// Add spam keywords (shorthand: XCP)
+XCP.addKeyword('crypto')
+XCP.addKeyword('giveaway')
+XCP.addKeyword('link in bio')
 
-// Analyze a spammy account
-XControlPanel.analyzeAccount('username')
+// View queue
+XCP.showQueue()
 
-// View your keywords
-XControlPanel.listMuteKeywords()
+// That's it! Extension will auto-mute when 10 accounts detected
+```
 
-// Check stats
-XControlPanel.stats()
+### Manual Trigger (Optional)
+
+```javascript
+// Manually trigger mute anytime
+XCP.autoMute()
+
+// View detailed list with reasons
+XCP.exportQueue()
+
+// Clear queue
+XCP.clearQueue('all')
 ```
 
 ---
 
 ## 📖 Console Commands Reference
+
+### Auto-Mute Commands (NEW)
+
+```javascript
+// View queue
+XCP.showQueue()              // Quick view
+XCP.exportQueue()            // Detailed with links
+
+// Trigger mute
+XCP.autoMute()               // Mute all
+XCP.autoMute('1-10')         // Mute first 10
+XCP.autoMute(5)              // Mute account #5
+
+// Clear queue
+XCP.clearQueue('all')        // Clear all
+XCP.clearQueue('1-10')       // Clear range
+XCP.clearQueue('username')   // Clear specific
+
+// Safety
+XCP.removeFollowedFromQueue() // Remove followed accounts
+```
 
 ### Keyword Management
 
@@ -237,3 +292,13 @@ MIT License
 **Happy filtering!** 🎉
 
 For help: `XControlPanel.help()`
+
+---
+
+## 📚 Additional Documentation
+
+- **[AUTO_MUTE_GUIDE.md](AUTO_MUTE_GUIDE.md)** - Complete auto-mute system guide (v9.0+)
+- **[KEYWORDS_GUIDE.md](KEYWORDS_GUIDE.md)** - Keyword management guide
+- **[PARODY_DETECTION_GUIDE.md](PARODY_DETECTION_GUIDE.md)** - Parody detection guide
+- **[QUICK_REFERENCE.md](QUICK_REFERENCE.md)** - Command reference
+

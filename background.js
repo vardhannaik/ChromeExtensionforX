@@ -1,12 +1,17 @@
 // Background service worker for Control Panel for X
 
-// Default settings - hideCheckmarks enabled by default
+// Default settings - hideCheckmarks OFF by default
 const DEFAULT_SETTINGS = {
-  hideCheckmarks: true,  // Enabled by default
+  hideCheckmarks: false,  // OFF by default
   hideAds: false,
   hideParody: false,
   keywordMutingEnabled: false,
-  hideMediaOnlyTweets: false
+  hideMediaOnlyTweets: false,
+  autoMuteEnabled: false,     // Auto-trigger when threshold reached
+  autoMuteThreshold: 10,      // Default: 10 accounts
+  autoMuteDelay: 2000,        // Default: 2 seconds between accounts
+  pageLoadTimeout: 10000,     // Default: 10 seconds to wait for page load
+  spaRenderDelay: 1500        // Default: 1.5 seconds for React to render
 };
 
 // Initialize default settings on install
@@ -46,121 +51,398 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       .catch(error => sendResponse({ success: false, error: error.message }));
     return true;
   }
+  
+  if (request.action === 'closeMuteTab') {
+    console.log('📩 [closeMuteTab] Received close request');
+    console.log(`📩 [closeMuteTab] Current state: windowId=${muteWindowId}, tabId=${muteTabId}`);
+    
+    // Close the mute tab when queue is empty
+    if (muteWindowId) {
+      chrome.windows.remove(muteWindowId)
+        .then(() => {
+          console.log('🧹 [closeMuteTab] Closed mute window (queue empty)');
+          muteWindowId = null;
+          muteTabId = null;
+        })
+        .catch(err => {
+          console.log(`⚠️  [closeMuteTab] Error closing window: ${err.message}`);
+        });
+    } else if (muteTabId) {
+      chrome.tabs.remove(muteTabId)
+        .then(() => {
+          console.log('🧹 [closeMuteTab] Closed mute tab (queue empty)');
+          muteTabId = null;
+        })
+        .catch(err => {
+          console.log(`⚠️  [closeMuteTab] Error closing tab: ${err.message}`);
+        });
+    } else {
+      console.log('⚠️  [closeMuteTab] No tab/window to close');
+    }
+    
+    sendResponse({ success: true });
+    return true;
+  }
 });
 
-// Auto-mute function using tabs and scripting
-async function handleAutoMute(accounts, options = {}) {
-  const delay = options.delay || 2000; // 2 seconds between each
-  const results = [];
+// Reusable minimized window for muting
+let muteWindowId = null;
+let muteTabId = null;
+let isProcessing = false; // Lock to prevent simultaneous auto-mute operations
+
+// Get or create reusable minimized window
+async function getReuseWindow() {
+  console.log(`🔍 [getReuseWindow] Called - Current state: windowId=${muteWindowId}, tabId=${muteTabId}`);
   
-  console.log(`🔄 Auto-muting ${accounts.length} accounts...`);
-  
-  for (let i = 0; i < accounts.length; i++) {
-    const { username } = accounts[i];
-    
+  if (muteWindowId && muteTabId) {
     try {
-      // Create new tab
-      const tab = await chrome.tabs.create({
-        url: `https://x.com/${username}`,
-        active: false // Background tab
-      });
+      console.log(`🔍 [getReuseWindow] Checking if window ${muteWindowId} and tab ${muteTabId} exist...`);
+      await chrome.windows.get(muteWindowId);
+      await chrome.tabs.get(muteTabId);
+      console.log(`♻️  [getReuseWindow] Reusing existing ${muteWindowId ? 'window' : 'tab'} (Tab ID: ${muteTabId})`);
+      return { windowId: muteWindowId, tabId: muteTabId };
+    } catch (err) {
+      console.log(`⚠️  [getReuseWindow] Window/tab no longer exists: ${err.message}`);
       
-      // Wait for page to load
-      await new Promise(resolve => {
-        chrome.tabs.onUpdated.addListener(function listener(tabId, info) {
-          if (tabId === tab.id && info.status === 'complete') {
-            chrome.tabs.onUpdated.removeListener(listener);
-            resolve();
-          }
-        });
-      });
-      
-      // Wait extra time for page to fully render
-      await sleep(1500);
-      
-      // Inject mute script
-      const result = await chrome.scripting.executeScript({
-        target: { tabId: tab.id },
-        func: muteAccountOnProfile
-      });
-      
-      // Close tab
-      await chrome.tabs.remove(tab.id);
-      
-      const success = result[0]?.result;
-      results.push({ username, success });
-      
-      console.log(`${success ? '✅' : '❌'} ${i + 1}/${accounts.length} ${success ? 'Muted' : 'Failed'} @${username}`);
-      
-      // Delay before next
-      if (i < accounts.length - 1) {
-        await sleep(delay);
+      // Try to clean up orphaned tab if it still exists
+      if (muteTabId) {
+        try {
+          await chrome.tabs.remove(muteTabId);
+          console.log('🧹 [getReuseWindow] Cleaned up orphaned tab');
+        } catch (e) {
+          console.log(`🧹 [getReuseWindow] Orphaned tab already gone`);
+        }
       }
       
-    } catch (error) {
-      console.error(`❌ Error muting @${username}:`, error);
-      results.push({ username, success: false, error: error.message });
+      muteWindowId = null;
+      muteTabId = null;
     }
   }
   
+  console.log(`🔨 [getReuseWindow] Creating NEW window/tab...`);
+  
+  // Try multiple strategies in order
+  let window;
+  
+  try {
+    // Strategy 1: Try minimized popup window (most hidden)
+    console.log('🔨 [getReuseWindow] Attempting minimized window...');
+    window = await chrome.windows.create({
+      url: 'https://x.com',
+      type: 'popup',
+      state: 'minimized',
+      focused: false,
+      width: 800,
+      height: 600
+    });
+    console.log(`✅ [getReuseWindow] Created minimized window (Window ID: ${window.id}, Tab ID: ${window.tabs[0].id})`);
+  } catch (error1) {
+    console.log(`❌ [getReuseWindow] Minimized failed: ${error1.message}`);
+    try {
+      // Strategy 2: Small window in bottom-right corner (visible but minimal)
+      console.log('🔨 [getReuseWindow] Attempting corner window...');
+      const screenWidth = screen.availWidth || 1920;
+      const screenHeight = screen.availHeight || 1080;
+      const windowWidth = 400;
+      const windowHeight = 300;
+      
+      window = await chrome.windows.create({
+        url: 'https://x.com',
+        type: 'popup',
+        focused: false,
+        left: screenWidth - windowWidth - 20,
+        top: screenHeight - windowHeight - 100,
+        width: windowWidth,
+        height: windowHeight
+      });
+      console.log(`✅ [getReuseWindow] Created corner window (Window ID: ${window.id}, Tab ID: ${window.tabs[0].id})`);
+    } catch (error2) {
+      console.log(`❌ [getReuseWindow] Corner window failed: ${error2.message}`);
+      // Strategy 3: Fallback to background tab (most compatible)
+      console.log('🔨 [getReuseWindow] Attempting background tab...');
+      const tab = await chrome.tabs.create({
+        url: 'https://x.com',
+        active: false
+      });
+      console.log(`✅ [getReuseWindow] Created background tab (Tab ID: ${tab.id})`);
+      muteTabId = tab.id;
+      muteWindowId = null; // No window, just tab
+      console.log(`🔍 [getReuseWindow] Returning: windowId=null, tabId=${tab.id}`);
+      return { windowId: null, tabId: tab.id };
+    }
+  }
+  
+  muteWindowId = window.id;
+  muteTabId = window.tabs[0].id;
+  
+  console.log(`🔍 [getReuseWindow] Returning: windowId=${muteWindowId}, tabId=${muteTabId}`);
+  return { windowId: muteWindowId, tabId: muteTabId };
+}
+
+// Wait for tab to complete loading (with timeout)
+async function waitForTabLoad(tabId, timeout = 10000) {
+  return new Promise((resolve, reject) => {
+    let resolved = false;
+    
+    const listener = (id, info) => {
+      if (id === tabId && info.status === 'complete' && !resolved) {
+        resolved = true;
+        chrome.tabs.onUpdated.removeListener(listener);
+        chrome.tabs.onRemoved.removeListener(removeListener);
+        clearTimeout(timer);
+        resolve();
+      }
+    };
+    
+    const removeListener = (id) => {
+      if (id === tabId && !resolved) {
+        resolved = true;
+        chrome.tabs.onUpdated.removeListener(listener);
+        chrome.tabs.onRemoved.removeListener(removeListener);
+        clearTimeout(timer);
+        reject(new Error('Tab was closed'));
+      }
+    };
+    
+    const timer = setTimeout(() => {
+      if (!resolved) {
+        resolved = true;
+        chrome.tabs.onUpdated.removeListener(listener);
+        chrome.tabs.onRemoved.removeListener(removeListener);
+        reject(new Error('Timeout waiting for tab to load'));
+      }
+    }, timeout);
+    
+    chrome.tabs.onUpdated.addListener(listener);
+    chrome.tabs.onRemoved.addListener(removeListener);
+  });
+}
+
+// Auto-mute function using single minimized window
+async function handleAutoMute(accounts, options = {}) {
+  // Check if already processing
+  if (isProcessing) {
+    console.log('⚠️  [handleAutoMute] Already processing, rejecting new request');
+    return { success: false, error: 'Auto-mute already in progress' };
+  }
+  
+  isProcessing = true;
+  console.log('🔒 [handleAutoMute] Lock acquired');
+  
+  const delay = options.delay || 2000;
+  const results = [];
+  
+  console.log(`\n========================================`);
+  console.log(`🔄 [handleAutoMute] STARTING - ${accounts.length} accounts`);
+  console.log(`========================================\n`);
+  
+  let windowId, tabId;
+  
+  try {
+    // Get or create minimized window
+    console.log(`🔍 [handleAutoMute] Calling getReuseWindow()...`);
+    const windowData = await getReuseWindow();
+    windowId = windowData.windowId;
+    tabId = windowData.tabId;
+    console.log(`🔍 [handleAutoMute] Got window/tab - windowId=${windowId}, tabId=${tabId}`);
+    
+    for (let i = 0; i < accounts.length; i++) {
+      const { username } = accounts[i];
+      
+      console.log(`\n🔍 [handleAutoMute] Processing account ${i+1}/${accounts.length}: @${username}`);
+      console.log(`🔍 [handleAutoMute] Using tabId=${tabId}`);
+      
+      try {
+        // Navigate to profile in minimized window
+        console.log(`🔍 [handleAutoMute] Navigating to https://x.com/${username}...`);
+        await chrome.tabs.update(tabId, { 
+          url: `https://x.com/${username}` 
+        });
+        
+        // Wait for navigation to complete
+        console.log(`🔍 [handleAutoMute] Waiting for tab to load...`);
+        await waitForTabLoad(tabId, options.pageLoadTimeout || 10000);
+        
+        // Extra wait for SPA (React) content to load
+        // X is a Single Page App - the page status is 'complete' but React takes time to render
+        const spaDelay = options.spaRenderDelay || 1500;
+        console.log(`🔍 [handleAutoMute] Waiting ${spaDelay}ms for SPA content to render...`);
+        await sleep(spaDelay);
+        
+        // Inject and execute mute script with MutationObserver
+        console.log(`🔍 [handleAutoMute] Executing mute script...`);
+        const result = await chrome.scripting.executeScript({
+          target: { tabId: tabId },
+          func: muteAccountOnProfile
+        });
+        
+        const success = result[0]?.result;
+        results.push({ username, success });
+        
+        console.log(`${success ? '✅' : '❌'} ${i + 1}/${accounts.length} ${success ? 'Muted' : 'Failed'} @${username}`);
+        
+        // Progress summary every 10 accounts
+        if ((i + 1) % 10 === 0 && i < accounts.length - 1) {
+          const successSoFar = results.filter(r => r.success).length;
+          const failedSoFar = results.length - successSoFar;
+          console.log(`\n📊 Progress: ${i + 1}/${accounts.length} processed (✅ ${successSoFar} | ❌ ${failedSoFar})\n`);
+          
+          // Send progress to content script for page console logging
+          try {
+            chrome.tabs.query({}, (tabs) => {
+              tabs.forEach(tab => {
+                if (tab.url?.includes('x.com')) {
+                  chrome.tabs.sendMessage(tab.id, {
+                    action: 'autoMuteProgress',
+                    current: i + 1,
+                    total: accounts.length,
+                    success: successSoFar,
+                    failed: failedSoFar
+                  }).catch(() => {}); // Ignore errors if content script not loaded
+                }
+              });
+            });
+          } catch (e) {
+            // Ignore message send errors
+          }
+        }
+        
+        // Delay before next
+        if (i < accounts.length - 1) {
+          await sleep(delay);
+        }
+        
+      } catch (error) {
+        const errorMsg = error.message || 'Unknown error';
+        console.error(`❌ Error muting @${username}: ${errorMsg}`);
+        results.push({ username, success: false, error: errorMsg });
+      }
+    }
+    
+  } finally {
+    // DON'T close tab here - keep it open for next cycle
+    // It will be reused via getReuseWindow() if another cycle starts
+    // Only manual cleanup or idle timeout will close it
+    
+    // Release lock
+    isProcessing = false;
+    console.log('🔓 [handleAutoMute] Lock released (tab kept open for reuse)');
+  }
+  
   const successCount = results.filter(r => r.success).length;
-  console.log(`\n✅ Auto-mute complete! Successfully muted ${successCount}/${accounts.length} accounts`);
+  console.log(`\n✅ [handleAutoMute] Complete! Successfully muted ${successCount}/${accounts.length} accounts`);
   
   return { success: true, results, successCount };
 }
 
-// Function injected into profile page to click mute
+// Function injected into profile page to click mute (with MutationObserver)
 function muteAccountOnProfile() {
-  try {
-    // SAFETY CHECK: Don't mute accounts you follow
-    const followButton = document.querySelector('[data-testid*="follow"]');
-    if (followButton) {
-      const buttonText = followButton.textContent.toLowerCase();
-      if (buttonText.includes('following') || buttonText.includes('unfollow')) {
-        console.log('⚠️ Skipping - you follow this account');
-        return false;
-      }
-    }
-    
-    // Find More button
-    const moreButton = document.querySelector('[data-testid="userActions"]');
-    if (!moreButton) return false;
-    
-    moreButton.click();
-    
-    // Wait for menu
-    return new Promise(resolve => {
-      setTimeout(() => {
-        const menu = document.querySelector('[role="menu"]');
-        if (!menu) {
-          resolve(false);
-          return;
-        }
-        
-        const menuItems = menu.querySelectorAll('[role="menuitem"]');
-        const muteButton = Array.from(menuItems).find(item => {
-          const text = item.textContent.trim().toLowerCase();
-          return text === 'mute' || text.includes('mute @');
+  return new Promise(async (resolve) => {
+    try {
+      // Helper: Wait for element to appear using MutationObserver
+      const waitForElement = (selector, timeout = 5000) => {
+        return new Promise((res, rej) => {
+          // Check if already exists
+          const existing = document.querySelector(selector);
+          if (existing) return res(existing);
+          
+          // Watch for it to appear
+          const observer = new MutationObserver(() => {
+            const element = document.querySelector(selector);
+            if (element) {
+              observer.disconnect();
+              res(element);
+            }
+          });
+          
+          observer.observe(document.body, {
+            childList: true,
+            subtree: true
+          });
+          
+          // Timeout
+          setTimeout(() => {
+            observer.disconnect();
+            rej(new Error('Element not found'));
+          }, timeout);
         });
-        
-        if (!muteButton) {
+      };
+      
+      // Wait for page to be fully ready
+      await waitForElement('[data-testid="userActions"]');
+      console.log('✓ Found userActions button');
+      
+      // Extra settle time
+      await new Promise(r => setTimeout(r, 300));
+      
+      // SAFETY CHECK: Don't mute accounts you follow
+      const followButton = document.querySelector('[data-testid*="follow"]');
+      if (followButton) {
+        const buttonText = followButton.textContent.toLowerCase();
+        if (buttonText.includes('following') || buttonText.includes('unfollow')) {
+          console.log('⚠️  Skipping - you follow this account');
           resolve(false);
           return;
         }
-        
-        // Check if already muted
-        if (muteButton.textContent.toLowerCase().includes('unmute')) {
-          resolve(true); // Already muted
-          return;
-        }
-        
-        muteButton.click();
-        resolve(true);
-      }, 500);
-    });
-  } catch (error) {
-    return false;
-  }
+      }
+      
+      // Find and click More button
+      const moreButton = document.querySelector('[data-testid="userActions"]');
+      if (!moreButton) {
+        console.log('❌ More button not found');
+        resolve(false);
+        return;
+      }
+      
+      moreButton.click();
+      console.log('✓ Clicked More button');
+      
+      // Wait for menu to appear using MutationObserver
+      await waitForElement('[role="menu"]');
+      console.log('✓ Menu appeared');
+      
+      // Extra time for menu to settle
+      await new Promise(r => setTimeout(r, 300));
+      
+      const menu = document.querySelector('[role="menu"]');
+      if (!menu) {
+        console.log('❌ Menu disappeared');
+        resolve(false);
+        return;
+      }
+      
+      const menuItems = menu.querySelectorAll('[role="menuitem"]');
+      console.log(`✓ Found ${menuItems.length} menu items`);
+      
+      const muteButton = Array.from(menuItems).find(item => {
+        const text = item.textContent.trim().toLowerCase();
+        return text === 'mute' || text.includes('mute @');
+      });
+      
+      if (!muteButton) {
+        console.log(`❌ Mute button not found. Menu items: ${Array.from(menuItems).map(i => i.textContent.trim()).join(', ')}`);
+        resolve(false);
+        return;
+      }
+      
+      console.log(`✓ Found mute button: "${muteButton.textContent.trim()}"`);
+      
+      // Check if already muted
+      if (muteButton.textContent.toLowerCase().includes('unmute')) {
+        console.log('⏭️  Already muted - skipping');
+        resolve(true); // Already muted - return success
+        return;
+      }
+      
+      muteButton.click();
+      console.log('✅ Mute button clicked');
+      resolve(true);
+      
+    } catch (error) {
+      console.error('Mute error:', error);
+      resolve(false);
+    }
+  });
 }
 
 function sleep(ms) {

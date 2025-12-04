@@ -8,26 +8,69 @@ console.log('🎮 X Control Panel: Starting backend...');
 
   // Get settings from storage
   let settings;
+  let isAutoMuting = false; // Track if auto-mute is currently running
+  
   try {
     const result = await chrome.storage.sync.get('settings');
     settings = result.settings || { 
-      hideCheckmarks: true, 
+      hideCheckmarks: false,  // OFF by default
       hideAds: false, 
       hideParody: false,
       keywordMutingEnabled: false,
-      hideMediaOnlyTweets: false
+      hideMediaOnlyTweets: false,
+      autoMuteEnabled: false,
+      autoMuteThreshold: 10,
+      autoMuteDelay: 2000,
+      pageLoadTimeout: 10000,
+      spaRenderDelay: 1500
     };
     console.log('Control Panel for X: Settings loaded', settings);
   } catch (error) {
     console.error('Control Panel for X: Error loading settings', error);
     settings = { 
-      hideCheckmarks: true, 
+      hideCheckmarks: false,  // OFF by default
       hideAds: false, 
       hideParody: false,
       keywordMutingEnabled: false,
-      hideMediaOnlyTweets: false
+      hideMediaOnlyTweets: false,
+      autoMuteEnabled: false,
+      autoMuteThreshold: 10,
+      autoMuteDelay: 2000,
+      pageLoadTimeout: 10000,
+      spaRenderDelay: 1500
     };
   }
+  
+  // Listen for settings changes (reset auto-mute if disabled)
+  chrome.storage.onChanged.addListener((changes, areaName) => {
+    if (areaName === 'sync' && changes.settings) {
+      const oldSettings = settings;
+      settings = changes.settings.newValue;
+      
+      // If auto-mute was disabled, cancel any ongoing auto-mute
+      if (oldSettings.autoMuteEnabled && !settings.autoMuteEnabled) {
+        console.log('🛑 Auto-mute disabled - cancelling any ongoing process');
+        isAutoMuting = false;
+      }
+      
+      // If threshold or delay changed while auto-mute active, log it
+      if (settings.autoMuteEnabled && isAutoMuting) {
+        if (oldSettings.autoMuteThreshold !== settings.autoMuteThreshold) {
+          console.log(`ℹ️  Auto-mute threshold changed: ${oldSettings.autoMuteThreshold} → ${settings.autoMuteThreshold}`);
+        }
+        if (oldSettings.autoMuteDelay !== settings.autoMuteDelay) {
+          console.log(`ℹ️  Auto-mute delay changed: ${oldSettings.autoMuteDelay}ms → ${settings.autoMuteDelay}ms (applies to next batch)`);
+        }
+      }
+    }
+  });
+  
+  // Listen for progress updates from background script
+  chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+    if (request.action === 'autoMuteProgress') {
+      console.log(`📊 Progress: ${request.current}/${request.total} processed (✅ ${request.success} | ❌ ${request.failed})`);
+    }
+  });
 
   // Apply settings as CSS classes to the body
   function applySettings() {
@@ -105,10 +148,73 @@ console.log('🎮 X Control Panel: Starting backend...');
     
     // Save to storage
     await saveBatchQueue();
+    
+    // Check if auto-mute should trigger
+    await checkAutoMuteTrigger();
   }
   
   async function saveBatchQueue() {
     await chrome.storage.local.set({ batchMuteQueue });
+  }
+  
+  // Check if auto-mute should be triggered
+  // Auto-mute trigger check with proper locking
+  let autoMutePromise = null;
+  
+  async function checkAutoMuteTrigger() {
+    if (batchMuteQueue.length === 0) return;
+    
+    // Check if auto-mute is enabled
+    if (!settings.autoMuteEnabled) return;
+    
+    // Check if already running
+    if (isAutoMuting || autoMutePromise) {
+      return; // Skip - already processing
+    }
+    
+    const threshold = settings.autoMuteThreshold || 10;
+    
+    // Trigger when threshold reached
+    if (batchMuteQueue.length >= threshold) {
+      // Set flag IMMEDIATELY to prevent race conditions
+      isAutoMuting = true;
+      
+      const totalAccounts = batchMuteQueue.length;
+      console.log(`\n🔔 Auto-mute threshold reached (${totalAccounts} accounts queued)`);
+      console.log(`🚀 Starting automatic mute process for ALL ${totalAccounts} accounts...\n`);
+      
+      // Create promise and store it
+      autoMutePromise = (async () => {
+        try {
+          // Mute ALL accounts in queue (not just threshold amount)
+          await window.XControlPanel.autoMute('all');
+          
+          // Small delay to ensure cleanup fully completed
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          console.log('✅ Auto-mute cycle complete, ready for next trigger\n');
+        } catch (error) {
+          console.error('❌ Auto-mute error:', error);
+        } finally {
+          // Reset flags when done
+          isAutoMuting = false;
+          autoMutePromise = null;
+          
+          // Check if queue is now empty
+          if (batchMuteQueue.length === 0) {
+            console.log('🎉 Queue is empty, closing mute tab...');
+            // Send message to background to close tab
+            chrome.runtime.sendMessage({ action: 'closeMuteTab' });
+          } else {
+            // More accounts in queue - check if we should trigger again
+            console.log(`📋 ${batchMuteQueue.length} accounts still in queue, checking threshold...`);
+            setTimeout(() => {
+              checkAutoMuteTrigger();
+            }, 100);
+          }
+        }
+      })();
+    }
   }
 
   async function addToMuteQueue(tweetElement, username, keyword) {
@@ -654,29 +760,6 @@ console.log('🎮 X Control Panel: Starting backend...');
     
     // ========== TRACKING ==========
     
-    listMuted: function() {
-      console.log(`📋 Muted accounts: ${mutedAccounts.length}\n`);
-      if (mutedAccounts.length === 0) {
-        console.log('  (none)');
-      } else {
-        console.table(mutedAccounts);
-      }
-      return mutedAccounts;
-    },
-    
-    clearMutedTracking: async function() {
-      if (mutedAccounts.length === 0) {
-        console.log('⚠️ No muted accounts to clear');
-        return;
-      }
-      
-      if (!confirm(`Clear tracking for ${mutedAccounts.length} muted accounts? (Accounts stay muted in X)`)) return;
-      
-      mutedAccounts = [];
-      mutedThisSession.clear();
-      await chrome.storage.local.set({ mutedAccounts: [] });
-      console.log('✅ Cleared tracking (accounts still muted in X)');
-    },
     
     // ========== STATS ==========
     
@@ -1073,7 +1156,7 @@ console.log('🎮 X Control Panel: Starting backend...');
       
       let accountsToMute = [];
       
-      // Parse range if provided
+      // Parse range
       if (!range || range === 'all') {
         accountsToMute = [...batchMuteQueue];
       } else if (typeof range === 'string' && range.includes('-')) {
@@ -1096,14 +1179,26 @@ console.log('🎮 X Control Panel: Starting backend...');
         return;
       }
       
-      console.log(`🚀 Starting auto-mute for ${accountsToMute.length} accounts...`);
-      console.log(`⏳ This will take approximately ${Math.ceil(accountsToMute.length * 3.5)} seconds\n`);
+      // Get delay from settings
+      const delay = settings.autoMuteDelay || 2000;
       
-      // Send to background script
+      console.log(`🚀 Starting auto-mute for ${accountsToMute.length} accounts (minimized window)...`);
+      
+      // Calculate estimated time including all delays
+      const spaDelay = (settings.spaRenderDelay || 1500) / 1000;
+      const accountDelay = delay / 1000;
+      const estimatedTime = Math.ceil(accountsToMute.length * (accountDelay + spaDelay + 2.5));
+      console.log(`⏳ This will take approximately ${estimatedTime} seconds\n`);
+      
+      // Send to background script with all timing options
       const response = await chrome.runtime.sendMessage({
         action: 'autoMute',
         accounts: accountsToMute,
-        options: { delay: 2000 }
+        options: { 
+          delay,
+          pageLoadTimeout: settings.pageLoadTimeout || 10000,
+          spaRenderDelay: settings.spaRenderDelay || 1500
+        }
       });
       
       if (response.success) {
@@ -1276,13 +1371,6 @@ Type: XControlPanel.help()
     window.XControlPanel.analyzeAccount(e.detail.username);
   });
   
-  window.addEventListener('XCP_LIST_MUTED', () => {
-    window.XControlPanel.listMuted();
-  });
-  
-  window.addEventListener('XCP_CLEAR_TRACKING', async () => {
-    await window.XControlPanel.clearMutedTracking();
-  });
   
   window.addEventListener('XCP_LIST_FAILED', async () => {
     if (batchMuteQueue.length === 0) {

@@ -51,17 +51,6 @@ window.XControlPanel = {
     console.log(`⏳ Analyzing @${username}'s tweets for spam patterns...`);
   },
   
-  listMuted: function() {
-    window.dispatchEvent(new CustomEvent('XCP_LIST_MUTED'));
-    console.log('⏳ Loading muted accounts...');
-  },
-  
-  clearMutedTracking: function() {
-    if (confirm('Clear muted accounts tracking? (Accounts stay muted in X)')) {
-      window.dispatchEvent(new CustomEvent('XCP_CLEAR_TRACKING'));
-      console.log('⏳ Clearing tracking...');
-    }
-  },
   
   listFailedMutes: function() {
     window.dispatchEvent(new CustomEvent('XCP_LIST_FAILED'));
