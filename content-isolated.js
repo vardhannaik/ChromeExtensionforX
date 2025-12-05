@@ -193,6 +193,7 @@ console.log('🎮 X Control Panel: Starting backend...');
       
       // Create promise and store it
       autoMutePromise = (async () => {
+        let success = false;
         try {
           // Mute ALL accounts in queue (not just threshold amount)
           await window.XControlPanel.autoMute('all');
@@ -201,14 +202,22 @@ console.log('🎮 X Control Panel: Starting backend...');
           await new Promise(resolve => setTimeout(resolve, 1000));
           
           console.log('✅ Auto-mute cycle complete, ready for next trigger\n');
+          success = true;
         } catch (error) {
           console.error('❌ Auto-mute error:', error);
+          // Don't set success = true, so we won't retry
         } finally {
           const threshold = settings.autoMuteThreshold || 10;
           
           // Reset flags BEFORE checking - this allows next trigger
           isAutoMuting = false;
           autoMutePromise = null;
+          
+          // Only continue processing if the previous cycle succeeded
+          if (!success) {
+            console.log('⚠️  Previous cycle failed or rejected, stopping auto-trigger chain');
+            return;
+          }
           
           // Check if queue is now empty OR below threshold
           if (batchMuteQueue.length === 0) {
@@ -219,12 +228,9 @@ console.log('🎮 X Control Panel: Starting backend...');
             console.log(`📋 ${batchMuteQueue.length} accounts in queue (below threshold of ${threshold}), closing tab...`);
             chrome.runtime.sendMessage({ action: 'closeMuteTab' });
           } else {
-            // Queue still above threshold - trigger next cycle
-            console.log(`📋 ${batchMuteQueue.length} accounts still in queue (threshold: ${threshold}), triggering next cycle...`);
-            // Trigger next cycle after small delay (non-blocking)
-            setTimeout(() => {
-              checkAutoMuteTrigger();
-            }, 100);
+            // Queue still above threshold - but DON'T trigger here
+            // Let the next tweet detection naturally trigger it
+            console.log(`📋 ${batchMuteQueue.length} accounts still in queue (threshold: ${threshold}), ready for next trigger`);
           }
         }
       })();
