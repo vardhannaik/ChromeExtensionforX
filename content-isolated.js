@@ -18,11 +18,13 @@ console.log('🎮 X Control Panel: Starting backend...');
       hideParody: false,
       keywordMutingEnabled: false,
       hideMediaOnlyTweets: false,
+      muteEmojis: false,
       autoMuteEnabled: false,
       autoMuteThreshold: 10,
       autoMuteDelay: 2000,
       pageLoadTimeout: 10000,
-      spaRenderDelay: 1500
+      spaRenderDelay: 1500,
+      debugLogging: false
     };
     console.log('Control Panel for X: Settings loaded', settings);
   } catch (error) {
@@ -33,11 +35,13 @@ console.log('🎮 X Control Panel: Starting backend...');
       hideParody: false,
       keywordMutingEnabled: false,
       hideMediaOnlyTweets: false,
+      muteEmojis: false,
       autoMuteEnabled: false,
       autoMuteThreshold: 10,
       autoMuteDelay: 2000,
       pageLoadTimeout: 10000,
-      spaRenderDelay: 1500
+      spaRenderDelay: 1500,
+      debugLogging: false
     };
   }
   
@@ -200,18 +204,24 @@ console.log('🎮 X Control Panel: Starting backend...');
         } catch (error) {
           console.error('❌ Auto-mute error:', error);
         } finally {
-          // Reset flags when done
+          const threshold = settings.autoMuteThreshold || 10;
+          
+          // Reset flags BEFORE checking - this allows next trigger
           isAutoMuting = false;
           autoMutePromise = null;
           
-          // Check if queue is now empty
+          // Check if queue is now empty OR below threshold
           if (batchMuteQueue.length === 0) {
             console.log('🎉 Queue is empty, closing mute tab...');
-            // Send message to background to close tab
+            chrome.runtime.sendMessage({ action: 'closeMuteTab' });
+          } else if (batchMuteQueue.length < threshold) {
+            // Queue below threshold - close tab and wait for more accounts
+            console.log(`📋 ${batchMuteQueue.length} accounts in queue (below threshold of ${threshold}), closing tab...`);
             chrome.runtime.sendMessage({ action: 'closeMuteTab' });
           } else {
-            // More accounts in queue - check if we should trigger again
-            console.log(`📋 ${batchMuteQueue.length} accounts still in queue, checking threshold...`);
+            // Queue still above threshold - trigger next cycle
+            console.log(`📋 ${batchMuteQueue.length} accounts still in queue (threshold: ${threshold}), triggering next cycle...`);
+            // Trigger next cycle after small delay (non-blocking)
             setTimeout(() => {
               checkAutoMuteTrigger();
             }, 100);
@@ -505,24 +515,31 @@ console.log('🎮 X Control Panel: Starting backend...');
         continue;
       }
 
-      // Extract real text (not username, dates, UI elements)
+      // Extract real text (not username, dates, UI elements, or quoted tweets)
+      // Only check the MAIN tweet's text, not quoted tweets
       const tweetTextElement = article.querySelector('[data-testid="tweetText"]');
       
       let text = '';
       if (tweetTextElement) {
-        text = tweetTextElement.textContent || '';
+        // Check if this tweetText is part of a quoted tweet
+        const isInQuotedTweet = tweetTextElement.closest('[role="link"]')?.querySelector('[data-testid="tweetText"]') === tweetTextElement;
         
-        // Remove UI noise (but keep hashtags, URLs, emojis)
-        text = text.replace(/@\w+/g, ''); // Remove mentions
-        text = text.replace(/Show more/gi, '');
-        text = text.replace(/Show less/gi, '');
-        text = text.replace(/Translate post/gi, '');
-        text = text.replace(/Show this thread/gi, '');
-        text = text.replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '');
-        text = text.replace(/\d{1,2}h/g, '');
-        text = text.replace(/\d{1,2}m/g, '');
-        text = text.replace(/\d{1,2}s/g, '');
-        text = text.trim();
+        // Only process if it's the main tweet's text (not from quoted tweet)
+        if (!isInQuotedTweet) {
+          text = tweetTextElement.textContent || '';
+          
+          // Remove UI noise (but keep hashtags, URLs, emojis)
+          text = text.replace(/@\w+/g, ''); // Remove mentions
+          text = text.replace(/Show more/gi, '');
+          text = text.replace(/Show less/gi, '');
+          text = text.replace(/Translate post/gi, '');
+          text = text.replace(/Show this thread/gi, '');
+          text = text.replace(/\d{1,2}:\d{2}\s*(AM|PM)?/gi, '');
+          text = text.replace(/\d{1,2}h/g, '');
+          text = text.replace(/\d{1,2}m/g, '');
+          text = text.replace(/\d{1,2}s/g, '');
+          text = text.trim();
+        }
       }
       
       // If has media and text length is 0, it's media-only spam
@@ -544,6 +561,44 @@ console.log('🎮 X Control Panel: Starting backend...');
       } else {
         article.setAttribute('data-xcp-mediaonly-processed', 'true');
       }
+    }
+  }
+
+  // Mute tweets containing emojis
+  async function muteEmojiTweets() {
+    if (!settings.muteEmojis) return;
+
+    const articles = document.querySelectorAll('article');
+    
+    for (const article of articles) {
+      if (article.hasAttribute('data-xcp-emoji-processed')) continue;
+
+      // Get the main tweet text (not quoted tweets, not UI elements)
+      const tweetTextElement = article.querySelector('[data-testid="tweetText"]');
+      
+      if (!tweetTextElement) {
+        article.setAttribute('data-xcp-emoji-processed', 'true');
+        continue;
+      }
+
+      const text = tweetTextElement.textContent || '';
+      
+      // Emoji regex - detects all Unicode emoji characters
+      const emojiRegex = /[\u{1F300}-\u{1F9FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F000}-\u{1F02F}\u{1F0A0}-\u{1F0FF}\u{1F100}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{1F910}-\u{1F96B}\u{1F980}-\u{1F9E0}]/u;
+      
+      if (emojiRegex.test(text)) {
+        const username = extractUsername(article);
+        
+        if (username) {
+          // SAFETY CHECK: Don't add accounts you follow
+          if (!isFollowedAccount(article)) {
+            // Silently add to batch queue
+            await addToBatchQueue(username, 'emoji-tweet');
+          }
+        }
+      }
+      
+      article.setAttribute('data-xcp-emoji-processed', 'true');
     }
   }
 
@@ -607,6 +662,7 @@ console.log('🎮 X Control Panel: Starting backend...');
     hidePromotedContent();
     hideParodyAccounts();
     hideMediaOnlyTweets();
+    muteEmojiTweets();
   }
 
   // Observer to handle dynamic content
@@ -1205,7 +1261,8 @@ console.log('🎮 X Control Panel: Starting backend...');
         options: { 
           delay,
           pageLoadTimeout: settings.pageLoadTimeout || 10000,
-          spaRenderDelay: settings.spaRenderDelay || 1500
+          spaRenderDelay: settings.spaRenderDelay || 1500,
+          debugLogging: settings.debugLogging || false
         }
       });
       

@@ -7,11 +7,13 @@ const DEFAULT_SETTINGS = {
   hideParody: false,
   keywordMutingEnabled: false,
   hideMediaOnlyTweets: false,
+  muteEmojis: false,          // Mute tweets with emojis
   autoMuteEnabled: false,     // Auto-trigger when threshold reached
   autoMuteThreshold: 10,      // Default: 10 accounts
   autoMuteDelay: 2000,        // Default: 2 seconds between accounts
   pageLoadTimeout: 10000,     // Default: 10 seconds to wait for page load
-  spaRenderDelay: 1500        // Default: 1.5 seconds for React to render
+  spaRenderDelay: 1500,       // Default: 1.5 seconds for React to render
+  debugLogging: false         // Debug logging OFF by default
 };
 
 // Initialize default settings on install
@@ -53,32 +55,52 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   }
   
   if (request.action === 'closeMuteTab') {
-    console.log('📩 [closeMuteTab] Received close request');
-    console.log(`📩 [closeMuteTab] Current state: windowId=${muteWindowId}, tabId=${muteTabId}`);
-    
-    // Close the mute tab when queue is empty
-    if (muteWindowId) {
-      chrome.windows.remove(muteWindowId)
-        .then(() => {
-          console.log('🧹 [closeMuteTab] Closed mute window (queue empty)');
-          muteWindowId = null;
-          muteTabId = null;
-        })
-        .catch(err => {
-          console.log(`⚠️  [closeMuteTab] Error closing window: ${err.message}`);
-        });
-    } else if (muteTabId) {
-      chrome.tabs.remove(muteTabId)
-        .then(() => {
-          console.log('🧹 [closeMuteTab] Closed mute tab (queue empty)');
-          muteTabId = null;
-        })
-        .catch(err => {
-          console.log(`⚠️  [closeMuteTab] Error closing tab: ${err.message}`);
-        });
-    } else {
-      console.log('⚠️  [closeMuteTab] No tab/window to close');
-    }
+    // Get debug setting
+    chrome.storage.sync.get('settings', async (result) => {
+      const settings = result.settings || DEFAULT_SETTINGS;
+      const debug = settings.debugLogging || false;
+      
+      if (debug) {
+        console.log('📩 [closeMuteTab] Received close request');
+        console.log(`📩 [closeMuteTab] Current state: windowId=${muteWindowId}, tabId=${muteTabId}`);
+      }
+      
+      // Close the mute tab when queue is empty
+      if (muteWindowId) {
+        chrome.windows.remove(muteWindowId)
+          .then(() => {
+            console.log('🧹 Closed mute tab');
+            muteWindowId = null;
+            muteTabId = null;
+          })
+          .catch(err => {
+            console.log(`⚠️  Error closing window: ${err.message}`);
+          });
+      } else if (muteTabId) {
+        const tabToClose = muteTabId;
+        chrome.tabs.remove(tabToClose)
+          .then(() => {
+            // Verify it actually closed before clearing the ID
+            setTimeout(() => {
+              chrome.tabs.get(tabToClose).then(() => {
+                console.log(`⚠️  WARNING: Tab ${tabToClose} still exists after close attempt!`);
+                // Tab still exists - don't clear the ID so it can be reused
+              }).catch(() => {
+                // Tab successfully closed
+                console.log(`🧹 Closed mute tab (ID: ${tabToClose})`);
+                muteTabId = null;
+                if (debug) console.log(`✅ Verified: Tab ${tabToClose} is closed`);
+              });
+            }, 100);
+          })
+          .catch(err => {
+            console.log(`⚠️  Error closing tab ${tabToClose}: ${err.message}`);
+            // Don't clear muteTabId on error - tab might still exist
+          });
+      } else {
+        if (debug) console.log('⚠️  [closeMuteTab] No tab/window to close');
+      }
+    });
     
     sendResponse({ success: true });
     return true;
@@ -94,13 +116,23 @@ let isProcessing = false; // Lock to prevent simultaneous auto-mute operations
 async function getReuseWindow() {
   console.log(`🔍 [getReuseWindow] Called - Current state: windowId=${muteWindowId}, tabId=${muteTabId}`);
   
-  if (muteWindowId && muteTabId) {
+  // Check if we have EITHER a window or a tab to reuse
+  if (muteWindowId || muteTabId) {
     try {
-      console.log(`🔍 [getReuseWindow] Checking if window ${muteWindowId} and tab ${muteTabId} exist...`);
-      await chrome.windows.get(muteWindowId);
-      await chrome.tabs.get(muteTabId);
-      console.log(`♻️  [getReuseWindow] Reusing existing ${muteWindowId ? 'window' : 'tab'} (Tab ID: ${muteTabId})`);
-      return { windowId: muteWindowId, tabId: muteTabId };
+      console.log(`🔍 [getReuseWindow] Checking if ${muteWindowId ? `window ${muteWindowId}` : `tab ${muteTabId}`} exists...`);
+      
+      // If we have a window, verify both window and tab
+      if (muteWindowId) {
+        await chrome.windows.get(muteWindowId);
+        await chrome.tabs.get(muteTabId);
+        console.log(`♻️  [getReuseWindow] Reusing existing window (Tab ID: ${muteTabId})`);
+        return { windowId: muteWindowId, tabId: muteTabId };
+      } else {
+        // Just verify the tab exists
+        await chrome.tabs.get(muteTabId);
+        console.log(`♻️  [getReuseWindow] Reusing existing tab (Tab ID: ${muteTabId})`);
+        return { windowId: null, tabId: muteTabId };
+      }
     } catch (err) {
       console.log(`⚠️  [getReuseWindow] Window/tab no longer exists: ${err.message}`);
       
@@ -227,50 +259,57 @@ async function handleAutoMute(accounts, options = {}) {
   }
   
   isProcessing = true;
-  console.log('🔒 [handleAutoMute] Lock acquired');
   
   const delay = options.delay || 2000;
+  const debugLog = options.debugLogging || false;
   const results = [];
   
+  // Helper for conditional debug logging
+  const log = (msg) => {
+    if (debugLog) console.log(msg);
+  };
+  
+  log('🔒 [handleAutoMute] Lock acquired');
+  
   console.log(`\n========================================`);
-  console.log(`🔄 [handleAutoMute] STARTING - ${accounts.length} accounts`);
+  console.log(`🔄 Auto-mute starting: ${accounts.length} accounts`);
   console.log(`========================================\n`);
   
   let windowId, tabId;
   
   try {
     // Get or create minimized window
-    console.log(`🔍 [handleAutoMute] Calling getReuseWindow()...`);
+    log(`🔍 [handleAutoMute] Calling getReuseWindow()...`);
     const windowData = await getReuseWindow();
     windowId = windowData.windowId;
     tabId = windowData.tabId;
-    console.log(`🔍 [handleAutoMute] Got window/tab - windowId=${windowId}, tabId=${tabId}`);
+    log(`🔍 [handleAutoMute] Got window/tab - windowId=${windowId}, tabId=${tabId}`);
     
     for (let i = 0; i < accounts.length; i++) {
       const { username } = accounts[i];
       
-      console.log(`\n🔍 [handleAutoMute] Processing account ${i+1}/${accounts.length}: @${username}`);
-      console.log(`🔍 [handleAutoMute] Using tabId=${tabId}`);
+      log(`\n🔍 [handleAutoMute] Processing account ${i+1}/${accounts.length}: @${username}`);
+      log(`🔍 [handleAutoMute] Using tabId=${tabId}`);
       
       try {
         // Navigate to profile in minimized window
-        console.log(`🔍 [handleAutoMute] Navigating to https://x.com/${username}...`);
+        log(`🔍 [handleAutoMute] Navigating to https://x.com/${username}...`);
         await chrome.tabs.update(tabId, { 
           url: `https://x.com/${username}` 
         });
         
         // Wait for navigation to complete
-        console.log(`🔍 [handleAutoMute] Waiting for tab to load...`);
+        log(`🔍 [handleAutoMute] Waiting for tab to load...`);
         await waitForTabLoad(tabId, options.pageLoadTimeout || 10000);
         
         // Extra wait for SPA (React) content to load
         // X is a Single Page App - the page status is 'complete' but React takes time to render
         const spaDelay = options.spaRenderDelay || 1500;
-        console.log(`🔍 [handleAutoMute] Waiting ${spaDelay}ms for SPA content to render...`);
+        log(`🔍 [handleAutoMute] Waiting ${spaDelay}ms for SPA content to render...`);
         await sleep(spaDelay);
         
         // Inject and execute mute script with MutationObserver
-        console.log(`🔍 [handleAutoMute] Executing mute script...`);
+        log(`🔍 [handleAutoMute] Executing mute script...`);
         const result = await chrome.scripting.executeScript({
           target: { tabId: tabId },
           func: muteAccountOnProfile

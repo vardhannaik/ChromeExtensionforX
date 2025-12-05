@@ -5,11 +5,13 @@ const DEFAULT_SETTINGS = {
   hideParody: false,
   keywordMutingEnabled: false,
   hideMediaOnlyTweets: false,
+  muteEmojis: false,
   autoMuteEnabled: false,
   autoMuteThreshold: 10,
   autoMuteDelay: 2000,
   pageLoadTimeout: 10000,
-  spaRenderDelay: 1500
+  spaRenderDelay: 1500,
+  debugLogging: false
 };
 
 // Load settings from storage
